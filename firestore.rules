@@ -23,7 +23,10 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == "su66666su@gmail.com" ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/user_roles/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/user_roles/$(request.auth.uid)).data.role == "super_admin" ||
+          get(/databases/$(database)/documents/user_roles/$(request.auth.uid)).data.role == "admin"))
       );
     }
 
@@ -37,7 +40,8 @@ service cloud.firestore {
       allow create: if isSignedIn() && isOwner(userId) && isValidUser(request.resource.data);
       allow update: if (isSignedIn() && isOwner(userId) && isValidUser(request.resource.data) && (
         // Prevent altering system-guarded role or balance directly from client
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bio', 'location', 'avatar', 'cover', 'isOnline', 'name', 'phone'])
+        (!request.resource.data.keys().contains('role') || !resource.data.keys().contains('role') || request.resource.data.role == resource.data.role) &&
+        (!request.resource.data.keys().contains('balance') || !resource.data.keys().contains('balance') || request.resource.data.balance == resource.data.balance)
       )) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -145,7 +149,7 @@ service cloud.firestore {
     // 9. User Roles administrative collection
     match /user_roles/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId && request.auth.token.email == "su66666su@gmail.com");
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     // 10. Unauthorized access Security Logs
