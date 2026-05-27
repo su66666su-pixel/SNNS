@@ -122,14 +122,16 @@
       "description": "Determines the permissions and administrative role of a user",
       "type": "object",
       "properties": {
+        "id": { "type": "string" },
         "user_id": { "type": "string" },
         "role": { "type": "string" },
         "permissions": {
           "type": "array",
           "items": { "type": "string" }
-        }
+        },
+        "created_at": { "type": "string" }
       },
-      "required": ["user_id", "role", "permissions"]
+      "required": ["id", "user_id", "role", "permissions", "created_at"]
     },
     "SecurityLog": {
       "title": "SecurityLog",

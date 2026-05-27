@@ -104,8 +104,8 @@ type AdminSection =
   | "vpn_monitor"
   | "access_codes";
 
-export default function AdminDashboard() {
-  const [activeSection, setActiveSection] = useState<AdminSection>("overview");
+export default function AdminDashboard({ initialSection }: { initialSection?: AdminSection } = {}) {
+  const [activeSection, setActiveSection] = useState<AdminSection>(initialSection || "overview");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const navigate = useNavigate();
 
@@ -143,6 +143,12 @@ export default function AdminDashboard() {
     return () => window.removeEventListener("snns_role_changed", onRoleChanged);
   }, []);
 
+  React.useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
+
   // Log unauthorized dashboard section access attempts automatically in threat logs
   React.useEffect(() => {
     const isAllowed = hasPermission(activeRole, activeSection);
@@ -167,6 +173,7 @@ export default function AdminDashboard() {
           verified: true
         });
       }
+      setActiveSection("overview");
     }
   }, [activeRole, activeSection, currentProfile]);
 
@@ -786,7 +793,7 @@ export default function AdminDashboard() {
     { id: "notifications", label: "التنبيهات العامة", icon: <Bell className="w-5 h-5" /> },
     { id: "system", label: "حالة النظام", icon: <Activity className="w-5 h-5" /> },
     { id: "settings", label: "الإعدادات العامة", icon: <Settings className="w-5 h-5" /> },
-  ];
+  ].filter(section => hasPermission(activeRole, section.id));
 
   return (
     <div className="flex h-screen bg-[#050505] text-white overflow-hidden font-tajawal" dir="rtl">

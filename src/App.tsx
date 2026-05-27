@@ -272,6 +272,18 @@ export function UserProfile() {
   const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   const [isFollowedByMe, setIsFollowedByMe] = useState(false);
+  const [logoClicks, setLogoClicks] = useState(0);
+
+  const handleHiddenLogoClick = () => {
+    setLogoClicks(prev => {
+      const next = prev + 1;
+      if (next >= 5) {
+        navigate("/secure-access");
+        return 0;
+      }
+      return next;
+    });
+  };
 
   // Sync displayed profile when urlUsername changes
   useEffect(() => {
@@ -1105,21 +1117,25 @@ export function UserProfile() {
                           <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">خيارات إدارية وتحكم</p>
                         </div>
                         
-                        <button 
-                          onClick={() => { setShowMoreDropdown(false); navigate("/admin"); }}
-                          className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-bold text-saudi-glow hover:bg-saudi-green/10 rounded-xl transition-colors cursor-pointer"
-                        >
-                          <ShieldCheck className="w-4 h-4 text-saudi-glow" />
-                          <span>لوحة الإدارة والأمان</span>
-                        </button>
+                        {["super_admin", "admin", "moderator", "security", "verification", "content_moderator"].includes(profile.role) && (
+                          <>
+                            <button 
+                              onClick={() => { setShowMoreDropdown(false); navigate("/admin"); }}
+                              className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-bold text-saudi-glow hover:bg-saudi-green/10 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <ShieldCheck className="w-4 h-4 text-saudi-glow" />
+                              <span>لوحة الإدارة والأمان</span>
+                            </button>
 
-                        <button 
-                          onClick={() => { setShowMoreDropdown(false); setShowSmartSentryUserModal(true); }}
-                          className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-bold text-yellow-500 hover:bg-yellow-500/10 rounded-xl transition-colors cursor-pointer"
-                        >
-                          <ShieldCheck className="w-4 h-4 text-yellow-500" />
-                          <span>بوابة الحارس الذكي</span>
-                        </button>
+                            <button 
+                              onClick={() => { setShowMoreDropdown(false); setShowSmartSentryUserModal(true); }}
+                              className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-bold text-yellow-500 hover:bg-yellow-500/10 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <ShieldCheck className="w-4 h-4 text-yellow-500" />
+                              <span>بوابة الحارس الذكي</span>
+                            </button>
+                          </>
+                        )}
 
                         <button 
                           onClick={() => { setShowMoreDropdown(false); setShowAuthModal(true); }}
@@ -1719,7 +1735,10 @@ export function UserProfile() {
               سياسة حذف الحساب والبيانات
             </button>
           </div>
-          <p className="text-[10px] text-gray-550 font-mono">
+          <p 
+            onClick={handleHiddenLogoClick}
+            className="text-[10px] text-gray-550 font-mono cursor-pointer select-none active:text-white/20 transition-colors"
+          >
             &copy; 2026 SNNS.PRO. جميع الحقوق محفوظة لمنصة التراث والصوتيات الوطنية الرقمية 🇸🇦
           </p>
         </footer>
@@ -3234,7 +3253,27 @@ export default function App() {
       <Route path="/profile" element={<UserProfile />} />
       <Route path="/admin/*" element={
         <AdminRouteGuard>
-          <AdminDashboard />
+          <AdminDashboard initialSection="overview" />
+        </AdminRouteGuard>
+      } />
+      <Route path="/security" element={
+        <AdminRouteGuard>
+          <AdminDashboard initialSection="sentry" />
+        </AdminRouteGuard>
+      } />
+      <Route path="/reports" element={
+        <AdminRouteGuard>
+          <AdminDashboard initialSection="reports" />
+        </AdminRouteGuard>
+      } />
+      <Route path="/verification" element={
+        <AdminRouteGuard>
+          <AdminDashboard initialSection="verification" />
+        </AdminRouteGuard>
+      } />
+      <Route path="/moderation" element={
+        <AdminRouteGuard>
+          <AdminDashboard initialSection="content" />
         </AdminRouteGuard>
       } />
       <Route path="/:username" element={<UserProfile />} />
