@@ -13,7 +13,7 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email == "su66666su@gmail.com");
+      return isSignedIn() && (request.auth.token.email_verified == true || (request.auth.token.keys().contains('email') && request.auth.token.email.lower() == "su66666su@gmail.com"));
     }
 
     function isOwner(userId) {
@@ -22,7 +22,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "su66666su@gmail.com" ||
+        (request.auth.token.keys().contains('email') && request.auth.token.email.lower() == "su66666su@gmail.com") ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/user_roles/$(request.auth.uid)) && 
          (get(/databases/$(database)/documents/user_roles/$(request.auth.uid)).data.role == "super_admin" ||
@@ -37,7 +37,7 @@ service cloud.firestore {
     // 2. User Profiles Collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(request.resource.data);
+      allow create: if (isSignedIn() && isOwner(userId) && isValidUser(request.resource.data)) || isAdmin();
       allow update: if (isSignedIn() && isOwner(userId) && isValidUser(request.resource.data) && (
         // Prevent altering system-guarded role or balance directly from client
         (!request.resource.data.keys().contains('role') || !resource.data.keys().contains('role') || request.resource.data.role == resource.data.role) &&
@@ -53,11 +53,16 @@ service cloud.firestore {
         && data.name is string && data.name.size() > 0 && data.name.size() <= 128
         && (!data.keys().contains('bio') || (data.bio is string && data.bio.size() <= 1000))
         && (!data.keys().contains('location') || (data.location is string && data.location.size() <= 256))
-        && (!data.keys().contains('avatar') || (data.avatar is string && data.avatar.size() <= 200000))
-        && (!data.keys().contains('cover') || (data.cover is string && data.cover.size() <= 200000))
+        && (!data.keys().contains('avatar') || (data.avatar is string && data.avatar.size() <= 400000))
+        && (!data.keys().contains('cover') || (data.cover is string && data.cover.size() <= 400000))
         && (!data.keys().contains('balance') || data.balance is number)
-        && (!data.keys().contains('role') || (data.role is string && data.role.size() <= 30))
-        && (!data.keys().contains('status') || (data.status is string && data.status.size() <= 40));
+        && (!data.keys().contains('role') || (data.role is string && data.role.size() <= 40))
+        && (!data.keys().contains('status') || (data.status is string && data.status.size() <= 100))
+        && (!data.keys().contains('joinDate') || (data.joinDate is string && data.joinDate.size() <= 100))
+        && (!data.keys().contains('email') || (data.email is string && data.email.size() <= 256))
+        && (!data.keys().contains('phone') || (data.phone is string && data.phone.size() <= 100))
+        && (!data.keys().contains('accountType') || (data.accountType is string && data.accountType.size() <= 50))
+        && (!data.keys().contains('verified') || (data.verified is bool));
     }
 
     // 3. Videos Collection

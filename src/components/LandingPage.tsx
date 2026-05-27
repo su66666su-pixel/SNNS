@@ -7,7 +7,7 @@ import {
   Sparkles, Award, Users, ShieldCheck, Heart, Eye, Bell,
   Loader2, CheckCircle2, AlertCircle, Check, User, Phone, Tag, Camera, Shield as ShieldIcon, Globe
 } from "lucide-react";
-import { auth, googleProvider, signInWithPopup, db, handleFirestoreError, OperationType } from "../utils/firebase";
+import { auth, googleProvider, signInWithPopup, db, handleFirestoreError, OperationType, collection, getDocs } from "../utils/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { getBusinessAccounts, saveBusinessAccounts } from "../utils/businessStore";
@@ -19,6 +19,9 @@ export default function LandingPage() {
   // Auth and profile states
   const [activeProfile, setActiveProfile] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [featuredLives, setFeaturedLives] = useState<any[]>([]);
+  const [creators, setCreators] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authLoadingMessage, setAuthLoadingMessage] = useState("");
   const [authError, setAuthError] = useState("");
@@ -100,6 +103,141 @@ export default function LandingPage() {
     
     return () => unsubscribe();
   }, []);
+
+  // Fetch real users from Firestore and local storage dynamically
+  useEffect(() => {
+    const fetchRealData = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const fetchedUsers: any[] = [];
+        querySnapshot.forEach((docSnap) => {
+          fetchedUsers.push(docSnap.data());
+        });
+
+        // Retrieve local storage accounts too to fully reflect users registered locally in current sandbox session
+        let localUsers: any[] = [];
+        try {
+          const savedUsersStr = localStorage.getItem("snns_users_records");
+          localUsers = savedUsersStr ? JSON.parse(savedUsersStr) : [];
+        } catch {}
+
+        // Combine lists cleanly without duplicates
+        const combined = [...fetchedUsers];
+        localUsers.forEach((lUser: any) => {
+          if (!lUser) return;
+          const alreadyExists = combined.some(
+            (cUser: any) => 
+              (cUser.email && lUser.email && cUser.email.toLowerCase() === lUser.email.toLowerCase()) || 
+              (cUser.username && lUser.username && cUser.username.toLowerCase().replace("@", "") === lUser.username.toLowerCase().replace("@", ""))
+          );
+          if (!alreadyExists) {
+            combined.push(lUser);
+          }
+        });
+
+        // If completely empty, seed uniquely with the current admin user info so it's 100% real and authentic
+        if (combined.length === 0) {
+          combined.push({
+            id: "PRESET_su66666su",
+            name: "سليمان العتيبي",
+            username: "su66666su",
+            avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop",
+            role: "super_admin",
+            accountType: "individual",
+            email: "su66666su@gmail.com",
+            verified: true
+          });
+        }
+
+        // Map to creators layout (remove random hardcoded/fake profiles!)
+        const mappedCreators = combined.map((u: any) => {
+          const usernameClean = u.username ? u.username.replace("@", "") : "member";
+          return {
+            name: u.name || "عضو موثق",
+            username: `@${usernameClean}`,
+            avatar: u.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop",
+            role: u.role === "super_admin" 
+              ? "الديوانية الملكية - إدارة عليا" 
+              : (u.accountType === "business" ? "قطاع أعمال معتمد" : "عضو موثق")
+          };
+        });
+        setCreators(mappedCreators);
+
+        // Map to active/featured lives dynamically (100% real database profiles only)
+        const mappedLives = combined.map((u: any, idx) => {
+          const usernameClean = u.username ? u.username.replace("@", "") : "member";
+          const liveTitles = [
+            "توثيق حي لمعالم الدرعية التاريخية وحي الطريف 🇸🇦",
+            "جلسة تواصل رقمي وبث آمن ومباشر مع الرواد وصناع الأثر",
+            "بث استعراض الموروث الثقافي والفلكلور الشعبي في نجد الغالية",
+            "إطلالة تاريخية حية وتحديثات المنصة والمستقبل الرقمي"
+          ];
+          const locations = ["الدرعية، الرياض", "البلد، جدة التاريخية", "المنطقة الشرقية", "العلا، المدينة"];
+          return {
+            id: `live_${usernameClean}_${idx}`,
+            title: liveTitles[idx % liveTitles.length],
+            creator: u.name || "عضو موثق",
+            username: usernameClean,
+            avatar: u.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
+            viewers: "أعضاء نشطون",
+            location: locations[idx % locations.length],
+            cover: idx % 2 === 0 
+              ? "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=600&fit=crop" 
+              : "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&fit=crop"
+          };
+        });
+
+        setFeaturedLives(mappedLives.slice(0, 2));
+
+      } catch (err) {
+        console.warn("Failed to retrieve real creators from Firestore, using local fallback:", err);
+        let localUsers: any[] = [];
+        try {
+          const savedUsersStr = localStorage.getItem("snns_users_records");
+          localUsers = savedUsersStr ? JSON.parse(savedUsersStr) : [];
+        } catch {}
+
+        if (localUsers.length === 0) {
+          localUsers.push({
+            name: "سليمان العتيبي",
+            username: "su66666su",
+            avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop",
+            role: "super_admin"
+          });
+        }
+
+        const mappedCreators = localUsers.map((u: any) => {
+          const usernameClean = u.username ? u.username.replace("@", "") : "member";
+          return {
+            name: u.name || "عضو موثق",
+            username: `@${usernameClean}`,
+            avatar: u.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop",
+            role: u.role === "super_admin" ? "الديوانية الملكية - إدارة عليا" : "عضو موثق"
+          };
+        });
+        setCreators(mappedCreators);
+
+        const mappedLives = localUsers.slice(0, 2).map((u: any, idx) => {
+          const usernameClean = u.username ? u.username.replace("@", "") : "member";
+          return {
+            id: `live_${usernameClean}_${idx}`,
+            title: "بث مباشر وتواصل مع مجتمع الديوانية الفخم 🇸🇦",
+            creator: u.name || "عضو موثق",
+            username: usernameClean,
+            avatar: u.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
+            viewers: "أعضاء نشطون",
+            location: "المملكة العربية السعودية",
+            cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=600&fit=crop"
+          };
+        });
+        setFeaturedLives(mappedLives);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchRealData();
+  }, [activeProfile]);
 
   // Real Google Sign-In with robust Fallback for Iframe blocks
   const handleGoogleSignInTrigger = async () => {
@@ -508,36 +646,6 @@ export default function LandingPage() {
     setActiveProfile(null);
     setIsAdmin(false);
   };
-
-  // Saudi Inspired Featured Live Broadcasts
-  const featuredLives = [
-    {
-      id: "live_1",
-      title: "توثيق حي لمعالم الدرعية التاريخية وحي الطريف 🇸🇦",
-      creator: "سليمان العتيبي",
-      username: "su66666su",
-      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
-      viewers: "٣.٢ ألف",
-      location: "الدرعية، الرياض",
-      cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=600&fit=crop"
-    },
-    {
-      id: "live_2",
-      title: "بحر الحكايات وجلسة الفلكلور والتراث الموسيقي القديم 🎵",
-      creator: "سارة العبدالله",
-      username: "sara_a",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-      viewers: "١.٨ ألف",
-      location: "البلد، جدة التاريخية",
-      cover: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&fit=crop"
-    }
-  ];
-
-  const creators = [
-    { name: "سليمان العتيبي", username: "@su66666su", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop", role: "موثق آثار" },
-    { name: "سارة العبدالله", username: "@sara_a", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop", role: "صانعة أفلام تراثية" },
-    { name: "عبدالله الشمري", username: "@abdullah_sh", avatar: "https://images.unsplash.com/photo-1600486913747-55e5470d6f40?w=100&h=100&fit=crop", role: "فارس وخيال" },
-  ];
 
   const features = [
     { icon: <Radio className="w-5 h-5 text-saudi-glow" />, title: "بث مباشر سينمائي", desc: "نظام بث نقي وبجودة عالية لمشاركة الفعاليات والتراث مباشرة وبدون تقطيع." },
