@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email == "su66666su@gmail.com");
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "su66666su@gmail.com" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 2. User Profiles Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isSignedIn() && isOwner(userId) && isValidUser(request.resource.data) && (
+        // Prevent altering system-guarded role or balance directly from client
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bio', 'location', 'avatar', 'cover', 'isOnline', 'name', 'phone'])
+      )) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'username', 'name'])
+        && data.id is string && data.id.size() <= 128
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 30
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 60
+        && (!data.keys().contains('bio') || (data.bio is string && data.bio.size() <= 500))
+        && (!data.keys().contains('location') || (data.location is string && data.location.size() <= 150))
+        && (!data.keys().contains('avatar') || (data.avatar is string && data.avatar.size() <= 1000))
+        && (!data.keys().contains('cover') || (data.cover is string && data.cover.size() <= 1000))
+        && (!data.keys().contains('balance') || data.balance is number)
+        && (!data.keys().contains('role') || (data.role is string && data.role.size() <= 30))
+        && (!data.keys().contains('status') || (data.status is string && data.status.size() <= 20));
+    }
+
+    // 3. Videos Collection
+    match /videos/{videoId} {
+      allow read: if isSignedIn();
+      allow create: if isEmailVerified() && isValidVideo(request.resource.data);
+      allow update: if (isSignedIn() && (
+        // Creators can edit or delete their posts, or anyone can increment views/likes if specifically gated
+        (isOwner(resource.data.userId) && isValidVideo(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
+        // Public action: like or view update specifically
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'views'])
+      )) || isAdmin();
+      allow delete: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+    }
+
+    function isValidVideo(data) {
+      return data.keys().hasAll(['id', 'title', 'thumbnailUrl'])
+        && data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1000
+        && (!data.keys().contains('description') || (data.description is string && data.description.size() <= 1000))
+        && (!data.keys().contains('category') || (data.category is string && data.category.size() <= 50))
+        && (!data.keys().contains('likes') || data.likes is number)
+        && (!data.keys().contains('views') || data.views is string || data.views is number)
+        && (!data.keys().contains('userId') || (data.userId is string && data.userId.size() <= 128));
+    }
+
+    // 4. Photos Collection
+    match /photos/{photoId} {
+      allow read: if isSignedIn();
+      allow create: if isEmailVerified() && isValidPhoto(request.resource.data);
+      allow update: if (isSignedIn() && (
+        (isOwner(resource.data.userId) && isValidPhoto(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+      )) || isAdmin();
+      allow delete: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+    }
+
+    function isValidPhoto(data) {
+      return data.keys().hasAll(['id', 'url'])
+        && data.id is string && data.id.size() <= 128
+        && data.url is string && data.url.size() <= 1000
+        && (!data.keys().contains('caption') || (data.caption is string && data.caption.size() <= 1000))
+        && (!data.keys().contains('likes') || data.likes is number)
+        && (!data.keys().contains('userId') || (data.userId is string && data.userId.size() <= 128));
+    }
+
+    // 5. Encrypted Messages Collection
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && (
+        // A user can read a message if they are the sender, or if the message belongs to their chat room.
+        resource.data.senderId == request.auth.uid || 
+        resource.data.chatRoomId.matches('.*' + request.auth.uid + '.*')
+      );
+      allow create: if isSignedIn() && isValidMessage(request.resource.data) && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['id', 'chatRoomId', 'senderId', 'text'])
+        && data.id is string && data.id.size() <= 128
+        && data.chatRoomId is string && data.chatRoomId.size() <= 256
+        && data.senderId is string && data.senderId.size() <= 128
+        && data.text is string && data.text.size() <= 5000;
+    }
+
+    // 6. Security Warnings and Sentinel Alerts Collection
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 7. Sentry Threat Logs Collection (Smart Sentry audits)
+    match /threat_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn(); // Allow reporting threats/suspicious VPN triggers from client audit
+      allow update, delete: if isAdmin();
+    }
+
+    // 8. User Banning Tickets & Abuse Reports
+    match /reports/{reportId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.reporterId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account registration and profile schema for SNNS.PRO",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "bio": { "type": "string" },
+        "location": { "type": "string" },
+        "joinDate": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "isOnline": { "type": "boolean" },
+        "avatar": { "type": "string" },
+        "cover": { "type": "string" },
+        "role": { "type": "string" },
+        "balance": { "type": "number" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "username", "name"]
+    },
+    "VideoPost": {
+      "title": "VideoPost",
+      "description": "Short or long video content uploaded by creators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "views": { "type": "string" },
+        "likes": { "type": "number" },
+        "thumbnailUrl": { "type": "string" },
+        "hashtags": { "type": "string" },
+        "description": { "type": "string" },
+        "privacy": { "type": "string" },
+        "status": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "title", "thumbnailUrl"]
+    },
+    "PhotoPost": {
+      "title": "PhotoPost",
+      "description": "Photo posts uploaded to the platform feed",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string" },
+        "likes": { "type": "number" },
+        "caption": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "url"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Real-time secure chat communication messages",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chatRoomId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "encrypted": { "type": "boolean" }
+      },
+      "required": ["id", "chatRoomId", "senderId", "text"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "Alerts and notifications regarding security, interactions, or badges",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "title"]
+    },
+    "ThreatLogItem": {
+      "title": "ThreatLogItem",
+      "description": "Active system threat audit log registered by Smart Sentry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ip": { "type": "string" },
+        "country": { "type": "string" },
+        "countryCode": { "type": "string" },
+        "type": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "ip", "type", "timestamp"]
+    },
+    "ReportItem": {
+      "title": "ReportItem",
+      "description": "Banning and report tickets for violations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "type": { "type": "string" },
+        "reason": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "targetId", "type", "reason", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Stores official profiles, balance, and online status of SNNS users"
+    },
+    "/videos/{videoId}": {
+      "schema": "VideoPost",
+      "description": "Stores user-published videos"
+    },
+    "/photos/{photoId}": {
+      "schema": "PhotoPost",
+      "description": "Stores user-published photos"
+    },
+    "/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Stores active real-time encrypted dialogue chats"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "NotificationItem",
+      "description": "Alerts and security sentinel notifications"
+    },
+    "/threat_logs/{logId}": {
+      "schema": "ThreatLogItem",
+      "description": "Keeps records of Smart Sentry security incidents and threats"
+    },
+    "/reports/{reportId}": {
+      "schema": "ReportItem",
+      "description": "Tracks community and user reports submitted to administrators"
+    }
+  }
+}
