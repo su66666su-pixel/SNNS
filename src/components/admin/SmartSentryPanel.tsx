@@ -14,6 +14,13 @@ import {
   hasSecurityAccess, maskIpAddress, maskDeviceName, addThreatLog,
   evaluateSentryThreat, ThreatRiskLevel
 } from "../../utils/securityWatchdogStore";
+import { db, collection, onSnapshot, query, orderBy, limit } from "../../utils/firebase";
+import { 
+  setupFCM, 
+  requestNotificationPermission, 
+  getNotificationPermissionStatus, 
+  triggerBrowserNotification 
+} from "../../utils/fcmNotifications";
 
 export default function SmartSentryPanel() {
   const [logs, setLogs] = useState<SecurityThreatLog[]>(() => getThreatLogs());
@@ -24,6 +31,107 @@ export default function SmartSentryPanel() {
   const [selectedRiskFilter, setSelectedRiskFilter] = useState<string>("all");
   const [showPdfReport, setShowPdfReport] = useState(false);
   const [pdfTheme, setPdfTheme] = useState<"light" | "dark">("light");
+
+  // Firebase Cloud Messaging & Browser Push States
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [fcmConnected, setFcmConnected] = useState(false);
+  const [isFcmSimulated, setIsFcmSimulated] = useState(false);
+  const [fcmError, setFcmError] = useState<string | null>(null);
+  const [notifPermission, setNotifPermission] = useState<string>("default");
+
+  // Determine notification permission on launch & initialize FCM setup
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifPermission(Notification.permission);
+    }
+
+    const initializePushSystem = async () => {
+      const fcmState = await setupFCM();
+      setFcmToken(fcmState.token);
+      setFcmError(fcmState.error);
+      setIsFcmSimulated(fcmState.isSimulated);
+      setFcmConnected(fcmState.token !== null);
+    };
+
+    initializePushSystem();
+  }, []);
+
+  // Request browser Notification permission yielder
+  const handleRequestPermission = async () => {
+    const granted = await requestNotificationPermission();
+    setNotifPermission(granted);
+    if (granted === "granted") {
+      showToast("✓ تم تفعيل إشعارات المتصفح من الحارس الذكي.");
+      triggerBrowserNotification(
+        "🔔 تم تفعيل منصة الحارس الذكي",
+        "سيتلقى هذا الجهاز إشعارات فورية عند رصد عمليات التلبيس والتهديدات ذات الخطورة القصوى (Extreme Risk)."
+      );
+    } else {
+      showToast("⚠ لم يتم منح إذن الإشعارات. يرجى تفعيله يدوياً في إعدادات المتصفح.");
+    }
+  };
+
+  // Dispatch a simulated extreme threat test to verify FCM and system synchronization
+  const handleTestPushNotification = () => {
+    const title = "🚨 تجربة إشعار الحارس الذكي | Sentry Test";
+    const body = `الحارس الذكي: رصد محاولة دخول مشبوهة ذات خطورة قصوى (Extreme Risk) من خادوم غريب.`;
+    
+    // Trigger local push
+    triggerBrowserNotification(title, body);
+
+    // Write a real extreme log to firestore & localStorage to test synchronization
+    addThreatLog({
+      userId: "su66666su",
+      ip: "185.120.44.180",
+      countryName: "المملكة العربية السعودية",
+      countryCode: "SA",
+      flag: "🇸🇦",
+      device: "FCM Push Tester Engine",
+      browser: "Chrome Admin Simulator v4",
+      eventType: "ip_anomaly",
+      riskScore: "extreme",
+      actionTaken: "locked_account",
+      notes: "محاكاة دفع أوتوماتيكي معتمد للتحقق من سلامة قنوات التوزيع الفوري (Real-time FCM Gateway Listener).",
+      verified: true
+    });
+
+    showToast("✓ تم إرسال الإشعار وتجربة السور السيبراني بنجاح.");
+  };
+
+  // Real-time Firestore document updates listener to intercept pushed extreme logs instantly
+  useEffect(() => {
+    let initialized = false;
+    
+    // Setup listener on threat_logs collection
+    const unsubscribe = onSnapshot(collection(db, "threat_logs"), (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const logData = change.doc.data();
+          
+          // Only fire notifications for new logs written *after* the dashboard page is active
+          if (initialized) {
+            if (logData.riskScore === "extreme") {
+              const title = `🚨 هجوم سيبراني قيد التنفيذ! [${getEventNameAr(logData.eventType)}]`;
+              const body = `الحارس الذكي: رصد ثغرة/تهديد خطير من IP ${logData.ip} يستهدف حساب @${logData.userId}. الإجراء: ${getActionNameAr(logData.actionTaken)}`;
+              
+              // Trigger browser notification
+              triggerBrowserNotification(title, body);
+              
+              // Local alerts
+              showToast(`🔔 تنبيه فوري: رصد تهديد خطير جداً لحساب @${logData.userId}`);
+            }
+          }
+        }
+      });
+      initialized = true;
+    }, (error) => {
+      console.warn("Real-time sentry_threat listener permission check or connection error:", error);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   
   // Simulation ongoing effects
   const [simType, setSimType] = useState<string | null>(null);
@@ -399,6 +507,88 @@ export default function SmartSentryPanel() {
             <span className="text-[9px] text-gray-550">تسلل</span>
           </div>
           <p className="text-[9px] text-gray-400 mt-2">روابط بروكسيات أجنبية</p>
+        </div>
+      </div>
+
+      {/* 🛡️ Sentry WNS / FCM Real-Time Push Gateway */}
+      <div className="p-5 bg-gradient-to-r from-neutral-950 via-[#0c0c0c] to-neutral-950 border border-white/5 rounded-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 p-3 opacity-[0.02]">
+          <Shield className="w-40 h-40 text-saudi-green" />
+        </div>
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full animate-ping ${fcmConnected ? "bg-saudi-green" : "bg-amber-400"}`} />
+              <h3 className="font-extrabold text-sm text-white flex items-center gap-2 font-tajawal">
+                بوابة التوجيه وبث الإشعارات الفورية (Sentry Real-Time FCM Push Hub)
+              </h3>
+            </div>
+            <p className="text-[11px] text-gray-400 max-w-2xl leading-relaxed">
+              تستخدم هذه الحاوية نظام <strong className="text-saudi-glow">Firebase Cloud Messaging (FCM)</strong> المتكامل لنقل وبث إشارات المخاطر قيد التنفيذ. عند تسجيل تهديد سيبراني بقيمة خطورة (خطير جداً)، يتم بث تنبيه فوري عبر متصفح المشرف حتى لو كانت الصفحة في الخلفية.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto self-end lg:self-center">
+            {/* Permission Toggler Button */}
+            {notifPermission !== "granted" ? (
+              <button
+                onClick={handleRequestPermission}
+                className="py-2 px-4 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>تفعيل إشعار المتصفح</span>
+              </button>
+            ) : (
+              <div className="py-2 px-4 bg-emerald-500/10 border border-emerald-500/30 text-saudi-glow text-xs font-bold rounded-xl flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-saudi-glow" />
+                <span>مرخص بالمتصفح ✓</span>
+              </div>
+            )}
+
+            {/* Test Broadcast Probe Button */}
+            <button
+              onClick={handleTestPushNotification}
+              className="py-2 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+              title="دفع إشعار تجريبي فوري وفحصه"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-saudi-glow" />
+              <span>فحص بث FCM التجريبي</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Technical pipeline diagnostic rail */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/5 text-[10.5px]">
+          {/* Diagnostic 1 */}
+          <div className="p-2.5 bg-[#050505] border border-white/3 rounded-xl flex justify-between items-center">
+            <span className="text-gray-550 font-bold">بوابة FCM والاشتراك:</span>
+            <span className={`px-2 py-0.5 rounded text-[9px] font-black ${
+              fcmConnected 
+                ? (isFcmSimulated ? "bg-sky-500/10 text-sky-400 border border-sky-500/20" : "bg-saudi-green/10 text-saudi-glow border border-saudi-green/25") 
+                : "bg-red-500/10 text-red-400 border border-red-500/25"
+            }`}>
+              {fcmConnected ? (isFcmSimulated ? "قناة محاكاة معتمدة" : "سيرفر السحابة نشط (Live)") : "خطأ أو غير متصل"}
+            </span>
+          </div>
+
+          {/* Diagnostic 2 */}
+          <div className="p-2.5 bg-[#050505] border border-white/3 rounded-xl flex justify-between items-center">
+            <span className="text-gray-550 font-bold">حالة إذن المتصفح:</span>
+            <span className="font-mono text-gray-350 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+              {notifPermission === "granted" ? "GRANTED" : notifPermission === "denied" ? "DENIED" : "PROMPT"}
+            </span>
+          </div>
+
+          {/* Diagnostic 3 */}
+          <div className="p-2.5 bg-[#050505] border border-white/3 rounded-xl flex items-center justify-between gap-2 overflow-hidden">
+            <span className="text-gray-550 font-bold shrink-0">مفتاح FCM Token:</span>
+            <span 
+              className="text-gray-400 font-mono text-[9px] truncate selection:bg-saudi-green/30 cursor-help"
+              title={fcmToken || "غير متوفر"}
+            >
+              {fcmToken ? `${fcmToken.substring(0, 15)}...${fcmToken.substring(fcmToken.length - 8)}` : "جاري التوليد..."}
+            </span>
+          </div>
         </div>
       </div>
 

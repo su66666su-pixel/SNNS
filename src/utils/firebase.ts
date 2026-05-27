@@ -9,7 +9,7 @@ import {
 import firebaseConfig from "../../firebase-applet-config.json";
 
 // Initialize Firebase App
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore with Database ID from configuration
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);

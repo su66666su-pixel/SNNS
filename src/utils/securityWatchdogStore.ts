@@ -1,4 +1,5 @@
 // securityWatchdogStore.ts - "الحارس الذكي" Smart Security AI Sentry for SNNS.PRO
+import { db, doc, setDoc } from "./firebase";
 
 export type ThreatRiskLevel = "low" | "medium" | "high" | "extreme";
 
@@ -211,6 +212,18 @@ export function addThreatLog(log: Omit<SecurityThreatLog, "id" | "timestamp">) {
   
   const updated = [newLog, ...currentLogs];
   saveThreatLogs(updated);
+
+  // Sync with Firestore for real-time distribution across active admin screens
+  try {
+    setDoc(doc(db, "threat_logs", newLog.id), {
+      ...newLog,
+      serverTime: new Date().toISOString()
+    }).catch(err => {
+      console.warn("Could not save to threat_logs collection in Firestore:", err);
+    });
+  } catch (firebaseErr) {
+    console.warn("Firebase Firestore write error:", firebaseErr);
+  }
 
   // Dispatch global custom event so panels update seamlessly in real-time
   const evt = new CustomEvent("snns_sentry_threat_added", { detail: newLog });

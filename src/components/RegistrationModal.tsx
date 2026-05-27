@@ -9,7 +9,7 @@ import {
   getBusinessAccounts, saveBusinessAccounts, validateNewBusinessAccount, BusinessAccount 
 } from "../utils/businessStore";
 import { addThreatLog, getDeviceSessions } from "../utils/securityWatchdogStore";
-import { auth, googleProvider, signInWithPopup } from "../utils/firebase";
+import { auth, googleProvider, signInWithPopup, db, doc, getDoc, setDoc } from "../utils/firebase";
 
 interface Props {
   isOpen: boolean;
@@ -124,6 +124,8 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
       avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop"
     };
 
+    let rawUid = "";
+
     try {
       // Attempt real auth
       const result = await signInWithPopup(auth, googleProvider);
@@ -135,6 +137,7 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
           email: user.email || "",
           avatar: user.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop"
         };
+        rawUid = user.uid;
         triggerToast("✓ تم تسجيل الدخول الفعلي بحساب Google المعتمد الحقيقي!");
       }
     } catch (err) {
@@ -148,44 +151,105 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
       triggerToast("✓ تم تذويب الهوية الرقمية في بيئة المعاينة الفورية بأمان.");
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsGoogleLoading(false);
       
       // Save Google User Profile Info
       localStorage.setItem("snns_google_user", JSON.stringify(resolvedUser));
 
-      // 1. Check if user is registered in snns_users_records
+      // 1. Check if user is registered in the real Firestore users collection!
+      let dbUserExist: any = null;
+      if (rawUid) {
+        try {
+          const userDocRef = doc(db, "users", rawUid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            dbUserExist = userDocSnap.data();
+            console.log("Found real Google user in Firestore:", dbUserExist);
+          }
+        } catch (dbErr) {
+          console.warn("Could not query Firestore users collection during login:", dbErr);
+        }
+      }
+
+      // Also check if they are in local storage snns_users_records
       const savedUsersStr = localStorage.getItem("snns_users_records");
       const usersList = savedUsersStr ? JSON.parse(savedUsersStr) : [];
       
       // Normalize email compare
-      const existingUser = usersList.find(
+      const existingLocalUser = usersList.find(
         (u: any) => u.email && u.email.toLowerCase() === resolvedUser.email.toLowerCase()
       );
 
-      // Also search commercial accounts in businessStore
+      // Search commercial accounts in businessStore
       const bizList = getBusinessAccounts();
       const existingBiz = bizList.find(
         (b: any) => b.email && b.email.toLowerCase() === resolvedUser.email.toLowerCase()
       );
 
-      if (existingUser) {
-        // Log in immediately
+      if (dbUserExist) {
+        // Log in immediately with Firestore profile
         const profileData = {
-          name: existingUser.name,
-          username: existingUser.username,
-          bio: existingUser.bio || "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
-          location: existingUser.location || "الرياض، المملكة العربية السعودية",
-          avatar: existingUser.avatar || resolvedUser.avatar,
-          cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
-          joinDate: existingUser.joinDate || "مايو ٢٠٢٦",
-          isVerified: existingUser.verified || false,
+          name: dbUserExist.name || resolvedUser.name,
+          username: dbUserExist.username || resolvedUser.email.split("@")[0].toLowerCase(),
+          bio: dbUserExist.bio || "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
+          location: dbUserExist.location || "الرياض، المملكة العربية السعودية",
+          avatar: dbUserExist.avatar || resolvedUser.avatar,
+          cover: dbUserExist.cover || "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: dbUserExist.joinDate || "مايو ٢٠٢٦",
+          isVerified: dbUserExist.verified !== false,
           isOnline: true,
-          stats: { followers: "٨٥", following: "٨", views: "١٥٠", coins: existingUser.balance || 1500, gifts: 0, liveHours: "٠" },
+          stats: { followers: "٨٥", following: "٨", views: "١٥٠", coins: dbUserExist.balance || 1500, gifts: 0, liveHours: "٠" },
+          creatorStatus: { level: 2, subscription: "بريميوم زائر موثق", completion: 80 },
+          accountType: dbUserExist.accountType || "individual",
+          email: dbUserExist.email || resolvedUser.email,
+          phone: dbUserExist.phone || ""
+        };
+
+        // Update active profile
+        localStorage.setItem("snns_user_profile", JSON.stringify(profileData));
+        
+        // Ensure local list features them
+        const hasLocal = usersList.some((u: any) => u.email && u.email.toLowerCase() === resolvedUser.email.toLowerCase());
+        if (!hasLocal) {
+          const newUserRecord = {
+            id: Date.now(),
+            name: profileData.name,
+            username: profileData.username,
+            email: profileData.email,
+            phone: profileData.phone,
+            status: "نشط",
+            verified: profileData.isVerified,
+            role: "صانع محتوى",
+            balance: 1500,
+            avatar: profileData.avatar,
+            lastActive: new Date().toISOString()
+          };
+          usersList.push(newUserRecord);
+          localStorage.setItem("snns_users_records", JSON.stringify(usersList));
+        }
+
+        triggerToast("✓ مرحباً بعودتك لتأكيد الهوية! تم تسجيل دخولك الفعلي بنجاح.");
+        onRegistrationSuccess(profileData, false);
+        onClose();
+        
+      } else if (existingLocalUser) {
+        // Log in immediately with local storage profile
+        const profileData = {
+          name: existingLocalUser.name,
+          username: existingLocalUser.username,
+          bio: existingLocalUser.bio || "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
+          location: existingLocalUser.location || "الرياض، المملكة العربية السعودية",
+          avatar: existingLocalUser.avatar || resolvedUser.avatar,
+          cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: existingLocalUser.joinDate || "مايو ٢٠٢٦",
+          isVerified: existingLocalUser.verified || false,
+          isOnline: true,
+          stats: { followers: "٨٥", following: "٨", views: "١٥٠", coins: existingLocalUser.balance || 1500, gifts: 0, liveHours: "٠" },
           creatorStatus: { level: 2, subscription: "بريميوم زائر موثق", completion: 80 },
           accountType: "individual",
-          email: existingUser.email,
-          phone: existingUser.phone
+          email: existingLocalUser.email,
+          phone: existingLocalUser.phone
         };
 
         // Update active profile
@@ -242,7 +306,7 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
     }, 1200);
   };
 
-  const handleOnboardSubmit = (e: React.FormEvent) => {
+  const handleOnboardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -303,6 +367,38 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
       email: googleUserOnboard.email,
       phone: onboardPhone
     };
+
+    // Save into Firestore users & roles if Google User UID is available!
+    const rawUid = googleUserOnboard.id.startsWith("G_") ? googleUserOnboard.id.substring(2) : googleUserOnboard.id;
+    if (rawUid && !rawUid.startsWith("PRESET_") && !rawUid.startsWith("USER_")) {
+      try {
+        await setDoc(doc(db, "users", rawUid), {
+          id: rawUid,
+          name: profileData.name,
+          username: cleanUsername,
+          bio: profileData.bio,
+          location: profileData.location,
+          avatar: profileData.avatar,
+          cover: profileData.cover,
+          joinDate: profileData.joinDate,
+          role: "user",
+          email: profileData.email,
+          phone: onboardPhone.trim(),
+          accountType: onboardAccountType,
+          verified: profileData.isVerified
+        });
+
+        const permissions: string[] = [];
+        await setDoc(doc(db, "user_roles", rawUid), {
+          user_id: rawUid,
+          role: "user",
+          permissions: permissions
+        });
+        console.log("Registered user profile to Firestore database:", rawUid);
+      } catch (fErr) {
+        console.warn("Could not save onboarded profile to Firestore: ", fErr);
+      }
+    }
 
     // Save into snns_users_records
     const newUserRecord = {
