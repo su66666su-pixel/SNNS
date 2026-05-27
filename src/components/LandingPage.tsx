@@ -29,8 +29,8 @@ export default function LandingPage() {
   
   // Simulated Google Auth modal fallback (when real sign-in popup blocks inside iframe)
   const [showFallbackPopup, setShowFallbackPopup] = useState(false);
-  const [simulatedEmail, setSimulatedEmail] = useState("su66666su@gmail.com");
-  const [simulatedName, setSimulatedName] = useState("سليمان العتيبي");
+  const [simulatedEmail, setSimulatedEmail] = useState("");
+  const [simulatedName, setSimulatedName] = useState("");
   const [simulatedAvatar, setSimulatedAvatar] = useState("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop");
 
   // Multi-step Onboarding form states
@@ -1034,7 +1034,7 @@ export default function LandingPage() {
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
-              className="max-w-md w-full bg-[#090909] border border-white/10 rounded-3rem rounded-3xl p-6 md:p-8 shadow-[0_0_60px_rgba(0,163,79,0.2)] overflow-hidden relative"
+              className="max-w-md w-full bg-[#090909] border border-white/10 rounded-3xl p-6 md:p-8 shadow-[0_0_60px_rgba(0,163,79,0.2)] overflow-hidden relative animate-fadeIn"
             >
               {/* Premium Background Accent */}
               <div className="absolute top-0 right-0 w-36 h-36 bg-saudi-green opacity-5 blur-[50px] pointer-events-none" />
@@ -1065,126 +1065,48 @@ export default function LandingPage() {
                 </span>
                 <h3 className="text-lg font-black text-white">تسجيل الدخول التفاعلي لـ Google</h3>
                 <p className="text-xs text-gray-400 leading-relaxed mt-2.5">
-                  تم رصد قيود حظر الإطارات المتداخلة (iFrame Sandbox) في متصفحك الحالي التي تمنع فتح النوافذ المنبثقة التابعة لـ Google. الرجاء إكمال استخدام الهوية عبر خوض المحاكي الآمن أدناه:
+                  تم رصد قيود حظر الإطارات المتداخلة (iFrame Sandbox) في متصفحك الحالي التي تمنع فتح النوافذ المنبثقة التابعة لـ Google. الرجاء إكمال استخدام الهوية عبر المحاكي الآمن أدناه:
                 </p>
               </div>
 
-              {/* Account Quick Select presets or Manual entry */}
-              <div className="space-y-3.5">
-                <label className="text-[10px] text-gray-500 font-bold block">اختر مستند هوية معتمد أو اكتب بياناتك للمتابعة:</label>
-                
-                {/* Simulated profiles list */}
-                <div 
-                  onClick={() => {
-                    setSimulatedName("سليمان العتيبي");
-                    setSimulatedEmail("su66666su@gmail.com");
-                    setSimulatedAvatar("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop");
-                  }}
-                  className={`p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between ${
-                    simulatedEmail === "su66666su@gmail.com" 
-                      ? "bg-saudi-green/10 border-saudi-green/45 shadow-[0_4px_12px_rgba(0,132,61,0.1)]" 
-                      : "bg-white/[0.02] border-white/5 hover:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop" alt="" className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0" />
-                    <div>
-                      <p className="text-xs font-black text-white flex items-center gap-1">
-                        <span>سليمان العتيبي</span>
-                        <span className="text-[9px] bg-red-500/35 border border-red-500/40 text-[9px] text-white px-2 py-0.1 rounded font-bold">المشرف العام (Admin)</span>
-                      </p>
-                      <p className="text-[10px] text-gray-500 font-mono">su66666su@gmail.com</p>
-                    </div>
-                  </div>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${simulatedEmail === "su66666su@gmail.com" ? "border-saudi-green bg-saudi-green" : "border-white/20"}`}>
-                    {simulatedEmail === "su66666su@gmail.com" && <Check className="w-2.5 h-2.5 text-white stroke-[4]" />}
-                  </div>
-                </div>
+              {/* Account Custom entry */}
+              <div className="space-y-4">
+                <label className="text-[10px] text-gray-400 font-bold block text-right">أدخل بيانات الهوية الرقمية للاعتماد والمتابعة:</label>
 
-                <div 
-                  onClick={() => {
-                    setSimulatedName("عبدالمحسن الخالدي");
-                    setSimulatedEmail("abdulmohsen@gmail.com");
-                    setSimulatedAvatar("https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop");
-                  }}
-                  className={`p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between ${
-                    simulatedEmail === "abdulmohsen@gmail.com" 
-                      ? "bg-saudi-green/10 border-saudi-green/45 shadow-[0_4px_12px_rgba(0,132,61,0.1)]" 
-                      : "bg-white/[0.02] border-white/5 hover:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop" alt="" className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0" />
-                    <div>
-                      <p className="text-xs font-black text-white">عبدالمحسن الخالدي (فردي)</p>
-                      <p className="text-[10px] text-gray-500 font-mono">abdul_kh@gmail.com</p>
-                    </div>
-                  </div>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${simulatedEmail === "abdulmohsen@gmail.com" ? "border-saudi-green bg-saudi-green" : "border-white/20"}`}>
-                    {simulatedEmail === "abdulmohsen@gmail.com" && <Check className="w-2.5 h-2.5 text-white stroke-[4]" />}
-                  </div>
-                </div>
-
-                <div 
-                  onClick={() => {
-                    setSimulatedName("مؤسسة تراث الجزيرة التجارية");
-                    setSimulatedEmail("aljazeera_corp@gmail.com");
-                    setSimulatedAvatar("https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=400&h=400&fit=crop");
-                  }}
-                  className={`p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center justify-between ${
-                    simulatedEmail === "aljazeera_corp@gmail.com" 
-                      ? "bg-saudi-green/10 border-saudi-green/45 shadow-[0_4px_12px_rgba(0,132,61,0.1)]" 
-                      : "bg-white/[0.02] border-white/5 hover:bg-white/5"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-saudi-green/10 flex items-center justify-center border border-saudi-green/20 text-saudi-glow font-black shrink-0">
-                      T
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-white flex items-center gap-1">
-                        <span>مؤسسة تراث الجزيرة</span>
-                        <span className="text-[9px] bg-saudi-green/30 border border-saudi-green/40 text-[9px] text-saudi-glow px-1.5 py-0.1 rounded font-bold">تجاري</span>
-                      </p>
-                      <p className="text-[10px] text-gray-500 font-mono">aljazeera_corp@gmail.com</p>
-                    </div>
-                  </div>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${simulatedEmail === "aljazeera_corp@gmail.com" ? "border-saudi-green bg-saudi-green" : "border-white/20"}`}>
-                    {simulatedEmail === "aljazeera_corp@gmail.com" && <Check className="w-2.5 h-2.5 text-white stroke-[4]" />}
-                  </div>
-                </div>
-
-                {/* Custom inputs */}
-                <div className="border border-white/5 rounded-xl p-3.5 bg-white/[0.01]">
-                  <p className="text-[10px] text-gray-400 font-black mb-2 flex items-center gap-1">
-                    <span>أو كتابة حساب مخصص بالكامل (لتجربة حساب جديد)</span>
-                  </p>
-                  
-                  <div className="space-y-2">
+                <div className="border border-white/5 rounded-2xl p-4 bg-white/[0.01] space-y-3.5">
+                  <div className="space-y-1.5 text-right font-tajawal">
+                    <label className="block text-[10px] text-gray-400 font-bold">الاسم الكامل لـ الحساب (Display Name)</label>
                     <input 
                       type="text" 
                       value={simulatedName}
                       onChange={(e) => setSimulatedName(e.target.value)}
-                      placeholder="الاسم الكامل لـ الحساب"
-                      className="w-full h-8 bg-black border border-white/5 focus:border-saudi-green/50 px-2.5 rounded-lg text-xs font-bold text-white outline-none placeholder:text-gray-600"
+                      placeholder="امثلة: كاتب، ناقد، زائر..."
+                      className="w-full h-11 bg-[#050505] border border-white/5 focus:border-saudi-green px-3.5 rounded-xl text-xs font-bold text-white outline-none placeholder:text-gray-600"
                     />
+                  </div>
+
+                  <div className="space-y-1.5 text-right font-tajawal">
+                    <label className="block text-[10px] text-gray-400 font-bold">البريد الإلكتروني المنسق (Email Address)</label>
                     <input 
                       type="email" 
                       value={simulatedEmail}
                       onChange={(e) => setSimulatedEmail(e.target.value)}
-                      placeholder="البريد الإلكتروني"
-                      className="w-full h-8 bg-black border border-white/5 focus:border-saudi-green/50 px-2.5 rounded-lg text-xs font-bold text-white outline-none placeholder:text-gray-600 font-mono"
+                      placeholder="user@example.com"
+                      className="w-full h-11 bg-[#050505] border border-white/5 focus:border-saudi-green px-3.5 rounded-xl text-xs font-bold text-white outline-none placeholder:text-gray-600 font-mono"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Accept & Action Buttons */}
-              <div className="mt-8 flex gap-3">
+              <div className="mt-8 flex gap-3 text-right" dir="rtl">
                 <button 
                   onClick={() => {
+                    if (!simulatedName.trim() || !simulatedEmail.trim()) {
+                      alert("الرجاء كتابة الاسم والبريد الإلكتروني المعتمر.");
+                      return;
+                    }
                     setShowFallbackPopup(false);
-                    // Open Processing immediately with prefilled
                     processAuthenticatedUser({
                       id: "G_SIM_" + Math.floor(1000 + Math.random() * 9000),
                       name: simulatedName,

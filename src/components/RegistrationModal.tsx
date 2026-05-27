@@ -126,8 +126,8 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
 
     let resolvedUser = {
       id: "G_USER_" + Math.floor(1000 + Math.random() * 9000),
-      name: "سليمان العتيبي",
-      email: "su66666su@gmail.com",
+      name: "عضو موثق",
+      email: "member@snns.pro",
       avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop"
     };
 
@@ -151,8 +151,8 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
       console.warn("Real google pop-up blocked or failed in sandbox frame, using optimized simulation mode:", err);
       resolvedUser = {
         id: "G_PRESET_" + Math.floor(1000 + Math.random() * 9000),
-        name: "سليمان العتيبي",
-        email: "su66666su@gmail.com",
+        name: "عضو موثق",
+        email: "member@snns.pro",
         avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop"
       };
       triggerToast("✓ تم تذويب الهوية الرقمية في بيئة المعاينة الفورية بأمان.");
@@ -1133,7 +1133,7 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
                         required
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        placeholder="su66666su@gmail.com"
+                        placeholder="user@example.com"
                         className="w-full bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 text-xs focus:border-saudi-green outline-none font-mono"
                       />
                     </div>
