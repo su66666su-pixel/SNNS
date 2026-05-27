@@ -69,6 +69,7 @@ import { auth, googleProvider, signInWithPopup } from "./utils/firebase";
 import { AlertCircle, Download } from "lucide-react";
 import ContentDownloadModal from "./components/ContentDownloadModal";
 import MyDownloadsTab from "./components/MyDownloadsTab";
+import NotFoundPage from "./components/NotFoundPage";
 
 export const getUsernameFromDisplayName = (displayName: string): string => {
   if (!displayName) return "";
@@ -3237,11 +3238,7 @@ export default function App() {
         </AdminRouteGuard>
       } />
       <Route path="/:username" element={<UserProfile />} />
-      <Route path="*" element={<div className="min-h-screen bg-black flex flex-col items-center justify-center text-center p-10 font-tajawal">
-        <ShieldAlert className="w-20 h-20 text-red-500 mb-6" />
-        <h1 className="text-3xl font-bold mb-4">هذه الصفحة غير موجودة</h1>
-        <Link to="/" className="text-saudi-glow underline">العودة للرئيسية</Link>
-      </div>} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
