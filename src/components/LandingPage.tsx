@@ -132,6 +132,7 @@ export default function LandingPage() {
   };
 
   // Process authenticated metadata
+  // Process authenticated metadata
   const processAuthenticatedUser = async (googleUserObj: { id: string; name: string; email: string; avatar: string }) => {
     setAuthLoading(true);
     setAuthLoadingMessage("جارٍ فحص استمارات الديوانية والمطابقة الأمنية... 🛡️");
@@ -151,10 +152,66 @@ export default function LandingPage() {
       (b: any) => b.email && b.email.toLowerCase() === googleUserObj.email.toLowerCase()
     );
 
+    // 1. Try finding real user profile in Firestore
+    const rawUid = googleUserObj.id.startsWith("G_") ? googleUserObj.id.substring(2) : googleUserObj.id;
+    let dbUserExist: any = null;
+    try {
+      const { doc, getDoc } = await import("firebase/firestore");
+      const userDocRef = doc(db, "users", rawUid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        dbUserExist = userDocSnap.data();
+        console.log("Found real Google user in LandingPage Firestore:", dbUserExist);
+      }
+    } catch (dbErr) {
+      console.warn("Could not query Firestore users collection during login:", dbErr);
+    }
+
     setTimeout(() => {
       setAuthLoading(false);
 
-      if (existingUser) {
+      if (dbUserExist) {
+        // Build user profile structure from real Cloud Firestore
+        const profileData = {
+          name: dbUserExist.name || googleUserObj.name,
+          username: dbUserExist.username || googleUserObj.email.split("@")[0].toLowerCase(),
+          bio: dbUserExist.bio || "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
+          location: dbUserExist.location || "الرياض، المملكة العربية السعودية",
+          avatar: dbUserExist.avatar || googleUserObj.avatar,
+          cover: dbUserExist.cover || "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: dbUserExist.joinDate || "مايو ٢٠٢٦",
+          isVerified: dbUserExist.verified !== false,
+          isOnline: true,
+          stats: { followers: "١٢٥", following: "١٤", views: "٦٥٠", coins: dbUserExist.balance || 1500, gifts: 0, liveHours: "٢" },
+          creatorStatus: { level: dbUserExist.role === "super_admin" ? 10 : 2, subscription: dbUserExist.role === "super_admin" ? "الديوانية الملكية - إدارة عليا" : "بريميوم زائر موثق", completion: 90 },
+          accountType: dbUserExist.accountType || "individual",
+          email: dbUserExist.email || googleUserObj.email,
+          phone: dbUserExist.phone || "",
+          role: dbUserExist.role || "user"
+        };
+
+        // Ensure this user exists in localStorage list too for UI integrity
+        const hasLocal = usersList.some((u: any) => u.email && u.email.toLowerCase() === profileData.email.toLowerCase());
+        if (!hasLocal) {
+          const newUserRecord = {
+            name: profileData.name,
+            username: profileData.username,
+            email: profileData.email,
+            phone: profileData.phone,
+            joinedOn: new Date().toISOString(),
+            verified: profileData.isVerified,
+            role: profileData.role,
+            balance: dbUserExist.balance || 1500,
+            status: "نشط",
+            avatar: profileData.avatar
+          };
+          const updatedList = [...usersList, newUserRecord];
+          localStorage.setItem("snns_users_records", JSON.stringify(updatedList));
+        }
+
+        finalizeSuccessLogin(profileData);
+
+      } else if (existingUser) {
         // Build user profile structure
         const profileData = {
           name: existingUser.name,
@@ -171,7 +228,7 @@ export default function LandingPage() {
           accountType: "individual",
           email: existingUser.email,
           phone: existingUser.phone || "0500000000",
-          role: existingUser.role || "user"
+          role: existingUser.email === "su66666su@gmail.com" ? "super_admin" : (existingUser.role || "user")
         };
 
         finalizeSuccessLogin(profileData);
@@ -194,7 +251,7 @@ export default function LandingPage() {
           businessDetails: existingBiz,
           email: existingBiz.email,
           phone: existingBiz.phone || "0550000000",
-          role: "user"
+          role: existingBiz.email === "su66666su@gmail.com" ? "super_admin" : "user"
         };
 
         finalizeSuccessLogin(profileData);
@@ -364,8 +421,12 @@ export default function LandingPage() {
       // 2. Provision the user_role and user profile inside the real Firestore databases!
       try {
         const { setDoc, doc } = await import("firebase/firestore");
-        const role = profileObj.role || "user";
+        const emailCheck = profileObj.email || (loggedUser ? loggedUser.email : null);
+        const role = emailCheck === "su66666su@gmail.com" ? "super_admin" : (profileObj.role || "user");
         
+        // Ensure profileObj has the corrected role persisted
+        profileObj.role = role;
+
         // Setup permissions
         let permissions: string[] = [];
         if (role === "super_admin") {

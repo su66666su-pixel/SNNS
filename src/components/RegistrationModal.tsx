@@ -200,10 +200,11 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
           isVerified: dbUserExist.verified !== false,
           isOnline: true,
           stats: { followers: "٨٥", following: "٨", views: "١٥٠", coins: dbUserExist.balance || 1500, gifts: 0, liveHours: "٠" },
-          creatorStatus: { level: 2, subscription: "بريميوم زائر موثق", completion: 80 },
+          creatorStatus: { level: dbUserExist.role === "super_admin" ? 10 : 2, subscription: dbUserExist.role === "super_admin" ? "الديوانية الملكية - إدارة عليا" : "بريميوم زائر موثق", completion: 80 },
           accountType: dbUserExist.accountType || "individual",
           email: dbUserExist.email || resolvedUser.email,
-          phone: dbUserExist.phone || ""
+          phone: dbUserExist.phone || "",
+          role: dbUserExist.email === "su66666su@gmail.com" ? "super_admin" : (dbUserExist.role || "user")
         };
 
         // Update active profile
@@ -373,6 +374,7 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
     if (rawUid && !rawUid.startsWith("PRESET_") && !rawUid.startsWith("USER_")) {
       // 1. Try to write user profile
       try {
+        const assignedRole = profileData.email === "su66666su@gmail.com" ? "super_admin" : "user";
         await setDoc(doc(db, "users", rawUid), {
           id: rawUid,
           name: profileData.name,
@@ -382,7 +384,7 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
           avatar: profileData.avatar,
           cover: profileData.cover,
           joinDate: profileData.joinDate,
-          role: "user",
+          role: assignedRole,
           email: profileData.email,
           phone: onboardPhone.trim(),
           accountType: onboardAccountType,
@@ -396,10 +398,13 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
 
       // 2. Try to write user roles
       try {
-        const permissions: string[] = [];
+        const assignedRole = profileData.email === "su66666su@gmail.com" ? "super_admin" : "user";
+        const permissions: string[] = assignedRole === "super_admin"
+          ? ["overview", "users", "moderators", "premium_handles", "google_audit", "creators", "lives", "content", "verification", "trusted_badges", "business", "countries", "vpn_monitor", "sentry", "firebase_config", "wallet", "reports", "notifications", "system", "settings"]
+          : [];
         await setDoc(doc(db, "user_roles", rawUid), {
           user_id: rawUid,
-          role: "user",
+          role: assignedRole,
           permissions: permissions
         });
         console.log("Registered user roles to Firestore database:", rawUid);
