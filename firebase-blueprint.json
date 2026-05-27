@@ -150,9 +150,26 @@
         "vpnDetected": { "type": "boolean" }
       },
       "required": ["id", "timestamp", "ip", "attemptedPath"]
+    },
+    "AccessCode": {
+      "title": "AccessCode",
+      "description": "Secure secret access token for admins and moderators",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "role": { "type": "string" },
+        "expires_at": { "type": "string" },
+        "created_by": { "type": "string" },
+        "is_active": { "type": "boolean" }
+      },
+      "required": ["code", "role", "expires_at", "is_active"]
     }
   },
   "firestore": {
+    "/access_codes/{codeId}": {
+      "schema": "AccessCode",
+      "description": "Stores administrator and moderator secure access codes and their metadata"
+    },
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "Stores official profiles, balance, and online status of SNNS users"

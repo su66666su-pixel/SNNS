@@ -487,15 +487,7 @@ export default function LandingPage() {
           <span className="font-sans font-black text-white text-lg tracking-wider">SNNS<span className="text-saudi-glow">.PRO</span></span>
         </div>
 
-        {isAdmin ? (
-          <Link 
-            to="/admin" 
-            className="text-[10px] md:text-xs font-bold bg-[#00843D]/20 border border-saudi-glow/30 hover:bg-[#00843D]/30 text-white px-4 py-1.5 rounded-full transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,132,61,0.2)] animate-pulse"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-saudi-glow" />
-            <span>لوحة الإدارة والأمان</span>
-          </Link>
-        ) : activeProfile ? (
+        {activeProfile ? (
           <Link 
             to={`/${activeProfile.username.replace("@", "")}`} 
             className="text-[10px] md:text-xs font-bold bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 px-4 py-1.5 rounded-full transition-all flex items-center gap-1.5"
@@ -805,16 +797,6 @@ export default function LandingPage() {
               <span>{activeProfile ? "دخول ديوانيتي الشخصية 🇸🇦" : "دخول ديوانيتي الافتراضية 🇸🇦"}</span>
               <ArrowLeft className="w-4 h-4" />
             </button>
-
-            {isAdmin && (
-              <Link 
-                to="/admin" 
-                className="px-6 h-12 bg-white/5 border border-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-saudi-glow" />
-                <span>لوحة الإدارة والأمان</span>
-              </Link>
-            )}
           </div>
         </div>
       </section>

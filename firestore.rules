@@ -158,5 +158,11 @@ service cloud.firestore {
       allow create: if true; // allow client logging of block/threat actions
       allow update, delete: if isAdmin();
     }
+
+    // 11. Secure Access Codes Management
+    match /access_codes/{codeId} {
+      allow get: if isSignedIn();
+      allow list, write: if isAdmin();
+    }
   }
 }

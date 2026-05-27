@@ -6,39 +6,43 @@ import { doc, getDoc, setDoc, collection, addDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
 // Let's model the possible roles
-export type UserRole = "user" | "creator" | "moderator" | "admin" | "super_admin";
+export type UserRole = "user" | "creator" | "moderator" | "admin" | "super_admin" | "security" | "verification" | "content_moderator";
 
 // Role Label Translations
 export const ROLE_LABELS: Record<UserRole, string> = {
   user: "مستخدم عادي",
   creator: "صانع محتوى تراثي",
-  moderator: "مشرف أمني/محتوى",
+  moderator: "مشرف محتوى وبث",
+  content_moderator: "مشرف المحتوى المتخصص",
+  security: "مشرف الأمن والسيبراني",
+  verification: "مدقق الهوية والتوثيق الرسمي",
   admin: "مدير إداري",
   super_admin: "مدير عام النظام (Super Admin)"
 };
 
 // Sub-sections access requirements
 export const SECTION_REQUIRED_ROLES: Record<string, UserRole[]> = {
-  overview: ["moderator", "admin", "super_admin"],
+  overview: ["moderator", "content_moderator", "security", "verification", "admin", "super_admin"],
   users: ["admin", "super_admin"],
   moderators: ["super_admin"],
   premium_handles: ["admin", "super_admin"],
-  google_audit: ["moderator", "admin", "super_admin"],
-  creators: ["moderator", "admin", "super_admin"],
-  lives: ["moderator", "admin", "super_admin"],
-  content: ["moderator", "admin", "super_admin"],
-  verification: ["moderator", "admin", "super_admin"],
-  trusted_badges: ["admin", "super_admin"],
+  google_audit: ["security", "admin", "super_admin"],
+  creators: ["verification", "admin", "super_admin", "moderator", "content_moderator"],
+  lives: ["moderator", "content_moderator", "admin", "super_admin"],
+  content: ["moderator", "content_moderator", "admin", "super_admin"],
+  verification: ["verification", "admin", "super_admin"],
+  trusted_badges: ["verification", "admin", "super_admin"],
   business: ["admin", "super_admin"],
-  countries: ["super_admin"],
-  vpn_monitor: ["admin", "super_admin"],
-  sentry: ["admin", "super_admin"],
+  countries: ["super_admin", "security"],
+  vpn_monitor: ["admin", "super_admin", "security"],
+  sentry: ["admin", "super_admin", "security"],
   firebase_config: ["super_admin"],
   wallet: ["admin", "super_admin"],
-  reports: ["moderator", "admin", "super_admin"],
-  notifications: ["moderator", "admin", "super_admin"],
-  system: ["admin", "super_admin"],
-  settings: ["super_admin"]
+  reports: ["moderator", "content_moderator", "security", "verification", "admin", "super_admin"],
+  notifications: ["moderator", "content_moderator", "admin", "super_admin"],
+  system: ["admin", "super_admin", "security"],
+  settings: ["super_admin"],
+  access_codes: ["super_admin"]
 };
 
 // Section Title dictionary in Arabic
@@ -134,8 +138,8 @@ export default function AdminRouteGuard({ children }: RouteGuardProps) {
           
           setUserRole(role);
           
-          // Check general dashboard authorization (moderator, admin, super_admin)
-          const authorized = ["moderator", "admin", "super_admin"].includes(role);
+          // Check general dashboard authorization (moderator, admin, super_admin, security, verification, content_moderator)
+          const authorized = ["moderator", "admin", "super_admin", "security", "verification", "content_moderator"].includes(role);
           setIsAuthorized(authorized);
           
           // Sync profile in local storage to keep client states updated

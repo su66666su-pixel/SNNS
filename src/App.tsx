@@ -64,6 +64,7 @@ import RegistrationModal from "./components/RegistrationModal";
 import AdCenter from "./components/AdCenter";
 import LandingPage from "./components/LandingPage";
 import AdminRouteGuard from "./components/AdminRouteGuard";
+import AccessPortal from "./components/AccessPortal";
 import { auth, googleProvider, signInWithPopup } from "./utils/firebase";
 import { AlertCircle, Download } from "lucide-react";
 import ContentDownloadModal from "./components/ContentDownloadModal";
@@ -3227,6 +3228,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/access-portal" element={<AccessPortal />} />
+      <Route path="/secure-access" element={<AccessPortal />} />
       <Route path="/profile" element={<UserProfile />} />
       <Route path="/admin/*" element={
         <AdminRouteGuard>

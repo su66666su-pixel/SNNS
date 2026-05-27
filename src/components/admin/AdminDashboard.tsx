@@ -8,6 +8,7 @@ import {
   BarChart3, 
   Settings, 
   Bell, 
+  Key,
   LogOut, 
   Menu, 
   X,
@@ -56,6 +57,7 @@ import SmartSentryPanel from "./SmartSentryPanel";
 import BusinessAccountsManager from "./BusinessAccountsManager";
 import FirebaseConfigConsole from "./FirebaseConfigConsole";
 import VpnCountryMonitor from "./VpnCountryMonitor";
+import AccessCodesManager from "./AccessCodesManager";
 import { syncReporterDecision } from "../../utils/reportSecurity";
 import { 
   getActiveUserRole, 
@@ -97,7 +99,8 @@ type AdminSection =
   | "sentry"
   | "firebase_config"
   | "business"
-  | "vpn_monitor";
+  | "vpn_monitor"
+  | "access_codes";
 
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
@@ -695,6 +698,7 @@ export default function AdminDashboard() {
     { id: "vpn_monitor", label: "مراقبة الدول وVPN 🌐", icon: <ShieldAlert className="w-5 h-5 text-amber-500" /> },
     { id: "sentry", label: "الحارس الذكي 🛡️ (Sentry-AI)", icon: <ShieldCheck className="w-5 h-5 text-saudi-glow" /> },
     { id: "firebase_config", label: "سحابة Firebase والهوية 🇸🇦", icon: <Server className="w-5 h-5 text-saudi-glow" /> },
+    { id: "access_codes", label: "رموز الوصول المشفرة 🔑", icon: <Key className="w-5 h-5 text-saudi-glow" /> },
     { id: "wallet", label: "المحفظة والمالية", icon: <Wallet className="w-5 h-5" /> },
     { id: "reports", label: "مركز البلاغات", icon: <AlertTriangle className="w-5 h-5" /> },
     { id: "notifications", label: "التنبيهات العامة", icon: <Bell className="w-5 h-5" /> },
@@ -2340,6 +2344,10 @@ export default function AdminDashboard() {
 
               {activeSection === "firebase_config" && (
                 <FirebaseConfigConsole />
+              )}
+
+              {activeSection === "access_codes" && (
+                <AccessCodesManager />
               )}
                 </>
               )}
