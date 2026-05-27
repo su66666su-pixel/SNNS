@@ -7,7 +7,9 @@ import {
   Sparkles, Award, Users, ShieldCheck, Heart, Eye, Bell,
   Loader2, CheckCircle2, AlertCircle, Check, User, Phone, Tag, Camera, Shield as ShieldIcon, Globe
 } from "lucide-react";
-import { auth, googleProvider, signInWithPopup } from "../utils/firebase";
+import { auth, googleProvider, signInWithPopup, db } from "../utils/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { getBusinessAccounts, saveBusinessAccounts } from "../utils/businessStore";
 
 export default function LandingPage() {
@@ -38,38 +40,65 @@ export default function LandingPage() {
   const [onboardAvatar, setOnboardAvatar] = useState("");
   const [onboardError, setOnboardError] = useState("");
 
-  // Check state & Sync on mount
+  // Check state & Sync on mount using real Firebase Auth and database roles
   useEffect(() => {
-    const checkUserSession = () => {
-      const savedProfile = localStorage.getItem("snns_user_profile");
-      if (savedProfile) {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
         try {
-          const parsed = JSON.parse(savedProfile);
-          setActiveProfile(parsed);
+          // Fetch role from Firestore "user_roles" collection
+          const roleDocRef = doc(db, "user_roles", user.uid);
+          const roleSnap = await getDoc(roleDocRef);
           
-          // Verify admin roles
-          const simOverride = localStorage.getItem("snns_simulated_role");
-          const roleText = parsed.role || "";
-          const computedRole = simOverride || roleText || "";
-          const isUserAuthorizedAdmin = ["moderator", "admin", "super_admin"].includes(computedRole) || parsed.email === "su66666su@gmail.com";
+          let role = "user";
+          if (roleSnap.exists()) {
+            role = roleSnap.data().role || "user";
+          } else if (user.email === "su66666su@gmail.com") {
+            role = "super_admin";
+          }
+          
+          const isUserAuthorizedAdmin = ["moderator", "admin", "super_admin"].includes(role);
           setIsAdmin(isUserAuthorizedAdmin);
-        } catch {
-          setActiveProfile(null);
+          
+          // Sync profile to local state
+          const savedProfile = localStorage.getItem("snns_user_profile");
+          if (savedProfile) {
+            const parsed = JSON.parse(savedProfile);
+            parsed.role = role;
+            parsed.email = user.email;
+            setActiveProfile(parsed);
+          } else {
+            // Reconstruct activeProfile from Google user if not logged in
+            const newProfileData = {
+              name: user.displayName || "مستخدم موثق",
+              username: user.email?.split("@")[0] || "member",
+              bio: "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
+              location: "الرياض، المملكة العربية السعودية",
+              avatar: user.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop",
+              cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+              joinDate: "مايو ٢٠٢٦",
+              isVerified: true,
+              isOnline: true,
+              stats: { followers: "0", following: "0", views: "0", coins: 1500, gifts: 0, liveHours: "0" },
+              creatorStatus: { level: 1, subscription: "بريميوم مجاني", completion: 50 },
+              accountType: "individual",
+              email: user.email,
+              role: role
+            };
+            localStorage.setItem("snns_user_profile", JSON.stringify(newProfileData));
+            setActiveProfile(newProfileData);
+          }
+        } catch (e) {
+          console.error("Error fetching user role on landing page:", e);
           setIsAdmin(false);
+          setActiveProfile(null);
         }
       } else {
-        setActiveProfile(null);
         setIsAdmin(false);
+        setActiveProfile(null);
       }
-    };
-
-    checkUserSession();
-    window.addEventListener("snns_role_changed", checkUserSession);
-    window.addEventListener("storage", checkUserSession);
-    return () => {
-      window.removeEventListener("snns_role_changed", checkUserSession);
-      window.removeEventListener("storage", checkUserSession);
-    };
+    });
+    
+    return () => unsubscribe();
   }, []);
 
   // Real Google Sign-In with robust Fallback for Iframe blocks
@@ -316,11 +345,66 @@ export default function LandingPage() {
     setShowOnboarding(false);
   };
 
-  // Helper finalized success handling
-  const finalizeSuccessLogin = (profileObj: any) => {
+  // Helper finalized success handling - with real database provisioning
+  const finalizeSuccessLogin = async (profileObj: any) => {
+    // 1. Ensure Firebase Auth contains the user session!
+    let loggedUser = auth.currentUser;
+    if (!loggedUser) {
+      try {
+        // Sign in anonymously to back their session with a genuine Firebase user
+        const { signInAnonymously } = await import("firebase/auth");
+        const cred = await signInAnonymously(auth);
+        loggedUser = cred.user;
+      } catch (err) {
+        console.error("Error signing in anonymously for iframe fallback:", err);
+      }
+    }
+
+    if (loggedUser) {
+      // 2. Provision the user_role and user profile inside the real Firestore databases!
+      try {
+        const { setDoc, doc } = await import("firebase/firestore");
+        const role = profileObj.role || "user";
+        
+        // Setup permissions
+        let permissions: string[] = [];
+        if (role === "super_admin") {
+          permissions = ["overview", "users", "moderators", "premium_handles", "google_audit", "creators", "lives", "content", "verification", "trusted_badges", "business", "countries", "vpn_monitor", "sentry", "firebase_config", "wallet", "reports", "notifications", "system", "settings"];
+        } else if (role === "admin") {
+          permissions = ["overview", "users", "premium_handles", "google_audit", "creators", "lives", "content", "verification", "trusted_badges", "business", "vpn_monitor", "sentry", "wallet", "reports", "notifications", "system"];
+        } else if (role === "moderator") {
+          permissions = ["overview", "google_audit", "creators", "lives", "content", "verification", "reports", "notifications"];
+        }
+
+        // Save to user_roles
+        await setDoc(doc(db, "user_roles", loggedUser.uid), {
+          user_id: loggedUser.uid,
+          role: role,
+          permissions: permissions
+        });
+
+        // Save to users
+        await setDoc(doc(db, "users", loggedUser.uid), {
+          id: loggedUser.uid,
+          name: profileObj.name,
+          username: profileObj.username,
+          bio: profileObj.bio || "",
+          location: profileObj.location || "",
+          avatar: profileObj.avatar || "",
+          cover: profileObj.cover || "",
+          joinDate: profileObj.joinDate || "",
+          role: role,
+          email: profileObj.email || "",
+          phone: profileObj.phone || ""
+        });
+      } catch (err) {
+        console.error("Could not write role/profile to Firestore:", err);
+      }
+    }
+
     localStorage.setItem("snns_user_profile", JSON.stringify(profileObj));
     localStorage.setItem("snns_google_user", JSON.stringify({
-      id: "G_PRESET_" + Math.floor(1000 + Math.random() * 9000),
+      id: loggedUser ? loggedUser.uid : "G_PRESET_" + Math.floor(1000 + Math.random() * 9000),
       name: profileObj.name,
       email: profileObj.email,
       avatar: profileObj.avatar

@@ -116,6 +116,40 @@
         "status": { "type": "string" }
       },
       "required": ["id", "targetId", "type", "reason", "status"]
+    },
+    "UserRole": {
+      "title": "UserRole",
+      "description": "Determines the permissions and administrative role of a user",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "role": { "type": "string" },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["user_id", "role", "permissions"]
+    },
+    "SecurityLog": {
+      "title": "SecurityLog",
+      "description": "Unauthorized administrative access attempt log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "ip": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "attemptedPath": { "type": "string" },
+        "role": { "type": "string" },
+        "riskLevel": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "countryCode": { "type": "string" },
+        "vpnDetected": { "type": "boolean" }
+      },
+      "required": ["id", "timestamp", "ip", "attemptedPath"]
     }
   },
   "firestore": {
@@ -146,6 +180,14 @@
     "/reports/{reportId}": {
       "schema": "ReportItem",
       "description": "Tracks community and user reports submitted to administrators"
+    },
+    "/user_roles/{userId}": {
+      "schema": "UserRole",
+      "description": "Stores user administrative roles and mapped permissions list"
+    },
+    "/security_logs/{logId}": {
+      "schema": "SecurityLog",
+      "description": "Stores security events logged by system sentinel for audit"
     }
   }
 }

@@ -141,5 +141,18 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
+
+    // 9. User Roles administrative collection
+    match /user_roles/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin() || (isSignedIn() && request.auth.uid == userId && request.auth.token.email == "su66666su@gmail.com");
+    }
+
+    // 10. Unauthorized access Security Logs
+    match /security_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if true; // allow client logging of block/threat actions
+      allow update, delete: if isAdmin();
+    }
   }
 }
