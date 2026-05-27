@@ -63,6 +63,7 @@ import SmartSentryUserModal from "./components/SmartSentryUserModal";
 import RegistrationModal from "./components/RegistrationModal";
 import AdCenter from "./components/AdCenter";
 import LandingPage from "./components/LandingPage";
+import AdminRouteGuard from "./components/AdminRouteGuard";
 import { auth, googleProvider, signInWithPopup } from "./utils/firebase";
 import { AlertCircle, Download } from "lucide-react";
 import ContentDownloadModal from "./components/ContentDownloadModal";
@@ -3227,7 +3228,11 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/profile" element={<UserProfile />} />
-      <Route path="/admin/*" element={<AdminDashboard />} />
+      <Route path="/admin/*" element={
+        <AdminRouteGuard>
+          <AdminDashboard />
+        </AdminRouteGuard>
+      } />
       <Route path="/:username" element={<UserProfile />} />
       <Route path="*" element={<div className="min-h-screen bg-black flex flex-col items-center justify-center text-center p-10 font-tajawal">
         <ShieldAlert className="w-20 h-20 text-red-500 mb-6" />

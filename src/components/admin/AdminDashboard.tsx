@@ -57,6 +57,15 @@ import BusinessAccountsManager from "./BusinessAccountsManager";
 import FirebaseConfigConsole from "./FirebaseConfigConsole";
 import VpnCountryMonitor from "./VpnCountryMonitor";
 import { syncReporterDecision } from "../../utils/reportSecurity";
+import { 
+  getActiveUserRole, 
+  hasPermission, 
+  ROLE_LABELS, 
+  SECTION_REQUIRED_ROLES, 
+  SECTION_TITLES, 
+  UserRole 
+} from "../AdminRouteGuard";
+import { addThreatLog, getDeviceSessions } from "../../utils/securityWatchdogStore";
 
 // Mock Analytical Data
 const analyticsData = [
@@ -113,6 +122,48 @@ export default function AdminDashboard() {
       return null;
     }
   });
+
+  // Dynamic active role with simulation sync
+  const [activeRole, setActiveRole] = useState<UserRole>(() => getActiveUserRole());
+
+  React.useEffect(() => {
+    const onRoleChanged = () => {
+      setActiveRole(getActiveUserRole());
+      try {
+        const saved = localStorage.getItem("snns_user_profile");
+        if (saved) setCurrentProfile(JSON.parse(saved));
+      } catch {}
+    };
+    window.addEventListener("snns_role_changed", onRoleChanged);
+    return () => window.removeEventListener("snns_role_changed", onRoleChanged);
+  }, []);
+
+  // Log unauthorized dashboard section access attempts automatically in threat logs
+  React.useEffect(() => {
+    const isAllowed = hasPermission(activeRole, activeSection);
+    if (!isAllowed) {
+      const key = `logged_section_unauth_${activeRole}_${activeSection}`;
+      const alreadyLogged = sessionStorage.getItem(key);
+      if (!alreadyLogged) {
+        sessionStorage.setItem(key, "true");
+        const currentSession = getDeviceSessions()[0];
+        addThreatLog({
+          userId: currentProfile?.username || "unauthorized_guest",
+          ip: currentSession?.ip || "185.120.44.18",
+          countryName: currentSession?.country || "المملكة العربية السعودية",
+          countryCode: "SA",
+          flag: "🇸🇦",
+          device: currentSession?.deviceName || "Unmasked Device client",
+          browser: currentSession?.browser || "Browser Engine",
+          eventType: "unauthorized_admin_access",
+          riskScore: "high",
+          actionTaken: "none",
+          notes: `محاولة محظورة للتسلل إلى قسم (${SECTION_TITLES[activeSection] || activeSection}) بواسطة حساب ذو دور غير مخول: (${ROLE_LABELS[activeRole] || activeRole}).`,
+          verified: true
+        });
+      }
+    }
+  }, [activeRole, activeSection, currentProfile]);
 
   // Admin global state simulation to preserve interactivity with localStorage persistence
   const [usersList, setUsersList] = useState<any[]>(() => {
@@ -771,7 +822,32 @@ export default function AdminDashboard() {
               transition={{ duration: 0.15 }}
               className="space-y-8"
             >
-              {activeSection === "overview" && (
+              {!hasPermission(activeRole, activeSection) ? (
+                <div className="bg-[#0A0A0A] border border-red-500/20 rounded-3xl p-12 text-center max-w-2xl mx-auto my-12 relative overflow-hidden font-tajawal" dir="rtl">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl" />
+                  <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center text-red-500 mx-auto mb-6">
+                    <Lock className="w-8 h-8 animate-pulse" />
+                  </div>
+                  <h3 className="text-xl font-bold text-red-400 mb-2">🚨 قسم مقيّد الصلاحية أمنياً</h3>
+                  <p className="text-gray-400 text-xs md:text-sm max-w-md mx-auto leading-relaxed mb-6">
+                    عذراً، يتطلب الوصول إلى <span className="text-white font-bold">{SECTION_TITLES[activeSection] || activeSection}</span> صلاحيات أمنية من فئة:
+                    <span className="text-saudi-glow font-extrabold mx-1">
+                      {SECTION_REQUIRED_ROLES[activeSection]?.map(r => ROLE_LABELS[r]).join(" أو ")}
+                    </span>.
+                  </p>
+                  <p className="text-[11px] text-gray-400 mb-6">
+                    دور حسابك الحالي: <span className="text-red-450 font-extrabold">{ROLE_LABELS[activeRole]}</span>
+                  </p>
+                  <div className="p-4 bg-red-950/20 border border-red-900/40 rounded-2xl text-right font-mono text-[10.5px] text-red-300 md:max-w-md mx-auto space-y-1">
+                    <div>[PROTOCOL] SNNS_SENTRY_AI_BREACH_BLOCK</div>
+                    <div>[THREAT] UNAUTHORIZED_PAGE_PENETRATION</div>
+                    <div>[REWARD] REPORT_LOGGED_TO_CYBER_LEDGER</div>
+                    <div>[STAMP_UTC] {new Date().toISOString().replace('T', ' ').substring(0, 19)}</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {activeSection === "overview" && (
                 <div className="space-y-8">
                   {/* Metrics Row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -2264,6 +2340,8 @@ export default function AdminDashboard() {
 
               {activeSection === "firebase_config" && (
                 <FirebaseConfigConsole />
+              )}
+                </>
               )}
             </motion.div>
           </AnimatePresence>

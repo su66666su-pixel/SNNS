@@ -26,7 +26,7 @@ export interface SecurityThreatLog {
   flag: string;
   device: string;
   browser: string;
-  eventType: "bruteforce" | "vpn_detected" | "country_mismatch" | "new_device" | "ip_anomaly" | "rate_limit" | "normal_login" | "two_factor" | "password_change" | "account_uclock_admin" | "account_lock_triggered";
+  eventType: "bruteforce" | "vpn_detected" | "country_mismatch" | "new_device" | "ip_anomaly" | "rate_limit" | "normal_login" | "two_factor" | "password_change" | "account_uclock_admin" | "account_lock_triggered" | "unauthorized_admin_access";
   riskScore: ThreatRiskLevel;
   actionTaken: "none" | "locked_account" | "ip_banned_temp" | "captcha_triggered" | "two_factor_sent" | "under_surveillance" | "password_change_forced";
   notes: string;

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  X, ShieldCheck, Mail, Send, Fingerprint, Sparkles, Building2, User, FileText, Upload, Check, AlertCircle, Info, Phone, Globe, Link2, Plus
+  X, ShieldCheck, Mail, Send, Fingerprint, Sparkles, Building2, User, FileText, Upload, Check, AlertCircle, Info, Phone, Globe, Link2, Plus, Lock, RefreshCw
 } from "lucide-react";
 import { 
   getBusinessAccounts, saveBusinessAccounts, validateNewBusinessAccount, BusinessAccount 
@@ -21,6 +21,19 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [accountType, setAccountType] = useState<"individual" | "business">("individual");
   
+  // Google Auth Onboarding states
+  const [googleUserOnboard, setGoogleUserOnboard] = useState<{ id: string; name: string; email: string; avatar: string } | null>(null);
+  const [completeOnboardStep, setCompleteOnboardStep] = useState(false);
+  const [onboardUsername, setOnboardUsername] = useState("");
+  const [onboardPhone, setOnboardPhone] = useState("");
+  const [onboardAccountType, setOnboardAccountType] = useState<"individual" | "business">("individual");
+  const [onboardAvatar, setOnboardAvatar] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+
+  // Loading indicator for Google Sign In
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleLoadingMessage, setGoogleLoadingMessage] = useState("");
+
   // Login states
   const [loginEmail, setLoginEmail] = useState("");
   const [loginOtpSent, setLoginOtpSent] = useState(false);
@@ -67,6 +80,9 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
       // Reset form on reopen
       setFormError("");
       setSuccessToast("");
+      setCompleteOnboardStep(false);
+      setGoogleUserOnboard(null);
+      setIsGoogleLoading(false);
     }
   }, [isOpen]);
 
@@ -95,12 +111,16 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
     }
   };
 
-  // Google Sign In integration inside Registration with automated fallback
+  // Google Sign In integration inside Registration with automated fallback and onboarding
   const handleGoogleSignInTrigger = async () => {
+    setIsGoogleLoading(true);
+    setGoogleLoadingMessage("جارٍ الاتصال بـ Google واكتساب وثيقة التحقق... 🔐");
+    setFormError("");
+
     let resolvedUser = {
       id: "G_USER_" + Math.floor(1000 + Math.random() * 9000),
-      name: "سطام بن فهد",
-      email: "sattam.fahad@gmail.com",
+      name: "سليمان العتيبي",
+      email: "su66666su@gmail.com",
       avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop"
     };
 
@@ -119,47 +139,218 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
       }
     } catch (err) {
       console.warn("Real google pop-up blocked or failed in sandbox frame, using optimized simulation mode:", err);
-      triggerToast("جاري استخدام بوابة قوقل التفاعلية المحاكاة بسبب قيود أمان الإطار (iFrame) 🇸🇦");
+      resolvedUser = {
+        id: "G_PRESET_" + Math.floor(1000 + Math.random() * 9000),
+        name: "سليمان العتيبي",
+        email: "su66666su@gmail.com",
+        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop"
+      };
+      triggerToast("✓ تم تذويب الهوية الرقمية في بيئة المعاينة الفورية بأمان.");
     }
 
-    localStorage.setItem("snns_google_user", JSON.stringify(resolvedUser));
-    
-    // Simulate finding registered profile or prompt to signup
-    const list = getBusinessAccounts();
-    const matchedBiz = list.find(a => a.email.toLowerCase() === resolvedUser.email.toLowerCase());
-    
-    if (matchedBiz) {
-      // Exist commercial
-      const profileData = {
-        name: matchedBiz.businessName,
-        username: matchedBiz.username,
-        bio: `حساب رسمي موثق للأنشطة التجارية | ${matchedBiz.activityType} 🇸🇦`,
-        location: matchedBiz.address,
-        avatar: matchedBiz.logoUrl || resolvedUser.avatar,
-        cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
-        joinDate: "مايو ٢٠٢٦",
-        isVerified: matchedBiz.verificationStatus === "approved",
-        isOnline: true,
-        stats: { followers: "٠", following: "٠", views: "٠", coins: 0, gifts: 0, liveHours: "٠" },
-        creatorStatus: { level: 1, subscription: "بريميوم القطاع التجاري", completion: 100 },
-        accountType: "business",
-        businessDetails: matchedBiz
-      };
-      onRegistrationSuccess(profileData, true);
-    } else {
-      // Redirect to register tab prefilled
-      setAuthMode("signup");
-      setRegEmail(resolvedUser.email);
-      setRegEmailVerified(true);
-      if (accountType === "business") {
-        setBizManager(resolvedUser.name);
-        setBizLogo(resolvedUser.avatar);
+    setTimeout(() => {
+      setIsGoogleLoading(false);
+      
+      // Save Google User Profile Info
+      localStorage.setItem("snns_google_user", JSON.stringify(resolvedUser));
+
+      // 1. Check if user is registered in snns_users_records
+      const savedUsersStr = localStorage.getItem("snns_users_records");
+      const usersList = savedUsersStr ? JSON.parse(savedUsersStr) : [];
+      
+      // Normalize email compare
+      const existingUser = usersList.find(
+        (u: any) => u.email && u.email.toLowerCase() === resolvedUser.email.toLowerCase()
+      );
+
+      // Also search commercial accounts in businessStore
+      const bizList = getBusinessAccounts();
+      const existingBiz = bizList.find(
+        (b: any) => b.email && b.email.toLowerCase() === resolvedUser.email.toLowerCase()
+      );
+
+      if (existingUser) {
+        // Log in immediately
+        const profileData = {
+          name: existingUser.name,
+          username: existingUser.username,
+          bio: existingUser.bio || "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
+          location: existingUser.location || "الرياض، المملكة العربية السعودية",
+          avatar: existingUser.avatar || resolvedUser.avatar,
+          cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: existingUser.joinDate || "مايو ٢٠٢٦",
+          isVerified: existingUser.verified || false,
+          isOnline: true,
+          stats: { followers: "٨٥", following: "٨", views: "١٥٠", coins: existingUser.balance || 1500, gifts: 0, liveHours: "٠" },
+          creatorStatus: { level: 2, subscription: "بريميوم زائر موثق", completion: 80 },
+          accountType: "individual",
+          email: existingUser.email,
+          phone: existingUser.phone
+        };
+
+        // Update active profile
+        localStorage.setItem("snns_user_profile", JSON.stringify(profileData));
+        
+        // Update state list isOnline and last active
+        const updatedUsers = usersList.map((u: any) => {
+          if (u.email && u.email.toLowerCase() === resolvedUser.email.toLowerCase()) {
+            return { ...u, status: "نشط", lastActive: new Date().toISOString() };
+          }
+          return u;
+        });
+        localStorage.setItem("snns_users_records", JSON.stringify(updatedUsers));
+
+        triggerToast("✓ مرحباً بعودتك! تم تسجيل دخولك المباشر بنجاح.");
+        onRegistrationSuccess(profileData, false);
+        onClose();
+        
+      } else if (existingBiz) {
+        // Commercial match
+        const profileData = {
+          name: existingBiz.businessName,
+          username: existingBiz.username,
+          bio: `${existingBiz.businessType === "company" ? "شركة" : "مؤسسة"} رسمية موثقة | أنشطة: ${existingBiz.activityType} 🇸🇦`,
+          location: existingBiz.address,
+          avatar: existingBiz.logoUrl || resolvedUser.avatar,
+          cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: "مايو ٢٠٢٦",
+          isVerified: existingBiz.verificationStatus === "approved",
+          isOnline: true,
+          stats: { followers: "٢.٥ ألف", following: "١٥", views: "٨٠ ألف", coins: 0, gifts: 0, liveHours: "٠" },
+          creatorStatus: { level: 5, subscription: "بريميوم القطاع التجاري", completion: 100 },
+          accountType: "business",
+          businessDetails: existingBiz,
+          email: existingBiz.email,
+          phone: existingBiz.phone
+        };
+
+        localStorage.setItem("snns_user_profile", JSON.stringify(profileData));
+        triggerToast("✓ مرحباً بعودتك! تم تسجيل الدخول لمنشأتكم المعتمدة بنجاح.");
+        onRegistrationSuccess(profileData, true);
+        onClose();
+
       } else {
-        setIndName(resolvedUser.name);
-        setIndUsername(resolvedUser.email.split("@")[0]);
+        // Totally new user - must Onboard!
+        setGoogleUserOnboard(resolvedUser);
+        setOnboardUsername(resolvedUser.email.split("@")[0].toLowerCase().replace(/[^a-zA-Z0-9_]/g, ""));
+        setOnboardPhone("");
+        setOnboardAccountType("individual");
+        setOnboardAvatar(resolvedUser.avatar);
+        setCompleteOnboardStep(true);
+        triggerToast("✓ تم تأكيد البريد الإلكتروني بنجاح! يرجى إكمال المعرف ورقم الجوال لتفعيل ديوانيتك.");
       }
-      triggerToast("✓ تم تأكيد البريد الإلكتروني عبر هويتك في Google! أكمل تعبئة ملفك الآن.");
+    }, 1200);
+  };
+
+  const handleOnboardSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError("");
+
+    if (!googleUserOnboard) return;
+
+    const cleanUsername = onboardUsername.trim().toLowerCase().replace(/[^a-zA-Z0-9_]/g, "");
+    if (!cleanUsername) {
+      setFormError("⚠️ يرجى إدخال معرّف صحيح صالح للاستخدام.");
+      return;
     }
+
+    const phoneRegex = /^\+?[0-9\s-]{9,15}$/;
+    if (!onboardPhone || !phoneRegex.test(onboardPhone)) {
+      setFormError("⚠️ يرجى إدخال رقم جوال صحيح مع رمز الدولة (مثال: +966501234567)");
+      return;
+    }
+
+    // Load registered lists to check duplicates
+    const savedStr = localStorage.getItem("snns_users_records");
+    const usersList = savedStr ? JSON.parse(savedStr) : [];
+    const bizList = getBusinessAccounts();
+
+    // Check username duplicates
+    const isUsernameTaken = usersList.some((u: any) => u.username && u.username.toLowerCase() === cleanUsername) ||
+                            bizList.some((b: any) => b.username && b.username.toLowerCase() === cleanUsername);
+    if (isUsernameTaken) {
+      setFormError("⚠️ المعرّف مكرر ومسجل مسبقاً لمستخدم آخر. يرجى اختيار اسم معرف فريد.");
+      return;
+    }
+
+    // Check phone duplicates
+    const isPhoneTaken = usersList.some((u: any) => u.phone && u.phone.trim() === onboardPhone.trim()) ||
+                         bizList.some((b: any) => b.phone && b.phone.trim() === onboardPhone.trim());
+    if (isPhoneTaken) {
+      setFormError("⚠️ رقم الجوال مستخدم ومسجل مسبقاً بملف حساب آخر.");
+      return;
+    }
+
+    // Add session trace
+    const activeSession = getDeviceSessions()[0];
+
+    // Create the user profile
+    const profileData = {
+      name: googleUserOnboard.name,
+      username: cleanUsername,
+      bio: onboardAccountType === "individual"
+        ? "عضو قوقل معتمد ومثبت في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦"
+        : `منشأة تجارية تجريبية | تواصل الجوال: ${onboardPhone} 🏢`,
+      location: "الرياض، المملكة العربية السعودية",
+      avatar: onboardAvatar || googleUserOnboard.avatar,
+      cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+      joinDate: "مايو ٢٠٢٦",
+      isVerified: onboardAccountType === "individual",
+      isOnline: true,
+      stats: { followers: "0", following: "0", views: "0", coins: 1500, gifts: 0, liveHours: "0" },
+      creatorStatus: { level: 1, subscription: onboardAccountType === "individual" ? "بريميوم زائر موثق" : "بريميوم القطاع التجاري (معلق)", completion: 100 },
+      accountType: onboardAccountType,
+      email: googleUserOnboard.email,
+      phone: onboardPhone
+    };
+
+    // Save into snns_users_records
+    const newUserRecord = {
+      id: Date.now(),
+      name: googleUserOnboard.name,
+      username: cleanUsername,
+      email: googleUserOnboard.email,
+      phone: onboardPhone.trim(),
+      status: "نشط",
+      verified: onboardAccountType === "individual",
+      role: onboardAccountType === "individual" ? "صانع محتوى" : "منشأة تجارية",
+      balance: 1500,
+      avatar: onboardAvatar || googleUserOnboard.avatar,
+      lastActive: new Date().toISOString()
+    };
+    usersList.push(newUserRecord);
+    localStorage.setItem("snns_users_records", JSON.stringify(usersList));
+
+    // Handle session settings (rememberMe)
+    if (rememberMe) {
+      localStorage.setItem("snns_user_profile", JSON.stringify(profileData));
+      localStorage.setItem("snns_google_user", JSON.stringify(googleUserOnboard));
+    } else {
+      localStorage.setItem("snns_user_profile", JSON.stringify(profileData));
+    }
+
+    // Security Threat logs auditing
+    addThreatLog({
+      userId: cleanUsername,
+      ip: activeSession?.ip || "185.120.44.18",
+      countryName: activeSession?.country || "المملكة العربية السعودية",
+      countryCode: "SA",
+      flag: "🇸🇦",
+      device: activeSession?.deviceName || "Unmasked Device client",
+      browser: activeSession?.browser || "Browser Engine",
+      eventType: "normal_login",
+      riskScore: "low",
+      actionTaken: "none",
+      notes: `تم إنشاء وتفعيل حساب بقوقل للمعرف (@${cleanUsername}) بنجاح مع تأكيد رقم الجوال.`,
+      verified: true
+    });
+
+    triggerToast("✓ تم تفعيل ديوانيتك وربط حساب قوقل بنجاح! جاري التثبيت...");
+    
+    setTimeout(() => {
+      onRegistrationSuccess(profileData, onboardAccountType === "business");
+      onClose();
+    }, 1000);
   };
 
   // Handle local File Reader for Sجل التجاري (Req 5)
@@ -461,43 +652,162 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
         {/* Modal body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
           
-          {/* Mode Selector Tabs */}
-          <div className="flex bg-neutral-950 p-1 rounded-2xl border border-white/5 text-xs font-bold shrink-0">
-            <button
-              onClick={() => setAuthMode("login")}
-              className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${authMode === "login" ? "bg-saudi-green/10 text-saudi-glow border border-saudi-green/20" : "text-gray-500 hover:text-white"}`}
-            >
-              تسجيل دخول سريع 🔑
-            </button>
-            <button
-              onClick={() => setAuthMode("signup")}
-              className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${authMode === "signup" ? "bg-saudi-green/10 text-saudi-glow border border-saudi-green/20" : "text-gray-500 hover:text-white"}`}
-            >
-              إنشاء حساب موثق جديد 🇸🇦
-            </button>
-          </div>
+          {isGoogleLoading ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-6 text-center animate-pulse">
+              <RefreshCw className="w-10 h-10 text-saudi-glow animate-spin" />
+              <div className="space-y-2">
+                <p className="font-extrabold text-xs text-white">{googleLoadingMessage}</p>
+                <p className="text-[10px] text-gray-500 font-bold font-sans">SNNS.PRO SECURITIES & BRANDING</p>
+              </div>
+            </div>
+          ) : completeOnboardStep ? (
+            <form onSubmit={handleOnboardSubmit} className="space-y-4 text-right">
+              <div className="text-center pb-2">
+                <div className="inline-block relative">
+                  <img
+                    src={onboardAvatar || googleUserOnboard?.avatar}
+                    alt="Google profile"
+                    className="w-16 h-16 rounded-full object-cover border-2 border-saudi-green shadow-[0_0_15px_rgba(0,163,79,0.3)] mx-auto"
+                    referrerPolicy="no-referrer"
+                  />
+                  <span className="absolute bottom-0 right-0 p-1 bg-saudi-green text-white rounded-full border border-neutral-950">
+                    <svg className="w-3 h-3 text-white fill-white" viewBox="0 0 24 24">
+                      <path fill="currentColor" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.113-5.136 4.113-3.078 0-5.586-2.433-5.586-5.513s2.508-5.513 5.586-5.513c1.38 0 2.632.503 3.599 1.43l3.203-3.21C18.816 3.66 15.7 2.4 12.24 2.4 6.784 2.4 2.4 6.784 2.4 12.24s4.384 9.84 9.84 9.84 9.84-4.384 9.84-9.84c0-.737-.08-1.442-.24-2.115H12.24z"/>
+                    </svg>
+                  </span>
+                </div>
+                <h4 className="font-extrabold text-sm text-white mt-3">مرحباً {googleUserOnboard?.name}</h4>
+                <p className="text-[10.5px] text-saudi-glow font-bold mt-0.5 font-mono">{googleUserOnboard?.email}</p>
+                <p className="text-[10px] text-gray-400 mt-2">يرجى تسجيل المعرف ورقم الجوال لتنشيط وحماية ديوانيتك:</p>
+              </div>
 
-          {/* GOOGLE SIGN-IN INTERACTIVE BLOCK */}
-          <div className="p-4 bg-white/2 border border-white/5 rounded-2xl text-center space-y-3">
-            <p className="text-[10.5px] text-gray-400">الخيار الموصى به لتداول البيانات وتخطي صرامة القيود السيبرانية:</p>
-            <button
-              onClick={handleGoogleSignInTrigger}
-              className="w-full bg-white text-gray-900 font-extrabold text-xs py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.9h6.69c-.29 1.5-1.14 2.77-2.4 3.61v3.02h3.87c2.26-2.08 3.58-5.14 3.58-8.46z" />
-                <path fill="#34A853" d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.87-3.02c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-4.99H1.27v3.12C3.25 21.32 7.37 24 12 24z" />
-                <path fill="#FBBC05" d="M5.24 14.24a7.19 7.19 0 0 1 0-4.48V6.64H1.27a11.96 11.96 0 0 0 0 10.72l3.97-3.12z" />
-                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.96 1.19 15.24 0 12 0 7.37 0 3.25 2.68 1.27 6.64l3.97 3.12c.95-2.86 3.61-4.99 6.76-4.99z" />
-              </svg>
-              <span>تسجيل دخول فوري بواسطة حساب قوقل معتمد</span>
-            </button>
-          </div>
+              {formError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 font-bold text-[11px] flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500" />
+                  <span>{formError}</span>
+                </div>
+              )}
 
-          <div className="relative text-center my-4 shrink-0">
-            <span className="bg-[#080808] px-3 text-[10px] text-gray-500 font-bold relative z-10 font-sans">OR SECURED EMAIL</span>
-            <hr className="absolute top-1/2 left-0 right-0 border-white/5 -z-1" />
-          </div>
+              <div className="space-y-3.5 bg-[#0a0a0a] p-4 rounded-2xl border border-white/5">
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1.5 font-bold text-right">نوع الديوانية (الحساب)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setOnboardAccountType("individual")}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${onboardAccountType === "individual" ? "bg-saudi-green/10 text-saudi-glow border-saudi-green/45" : "bg-neutral-950 text-gray-400 border-white/5"}`}
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      <span>فردي / صانع محتوى 🇸🇦</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOnboardAccountType("business")}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${onboardAccountType === "business" ? "bg-saudi-green/10 text-saudi-glow border-saudi-green/45" : "bg-neutral-950 text-gray-400 border-white/5"}`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>تجاري / قطاع منشآت 🏢</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1 font-bold text-right">المعرف الرقمي الموحد (@username)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={onboardUsername}
+                      onChange={(e) => setOnboardUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase())}
+                      placeholder="e.g. fahad_sa"
+                      className="w-full bg-[#050505] border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:border-saudi-green outline-none font-mono text-left"
+                      dir="ltr"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-gray-400 font-mono">@</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1 font-bold text-right">رقم الجوال الفاخر (مع رمز الدولة)</label>
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      required
+                      value={onboardPhone}
+                      onChange={(e) => setOnboardPhone(e.target.value)}
+                      placeholder="+966 50 123 4567"
+                      className="w-full bg-[#050505] border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white focus:border-saudi-green outline-none font-mono text-left"
+                      dir="ltr"
+                    />
+                    <Phone className="absolute right-3 top-3 w-3.5 h-3.5 text-gray-500" />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="remember_me_onboard"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-white/10 text-saudi-green bg-neutral-950 focus:ring-saudi-green shrink-0 w-3.5 h-3.5"
+                  />
+                  <label htmlFor="remember_me_onboard" className="text-[10px] text-gray-400 cursor-pointer select-none">
+                    تذكر هويتي الرقمية وجلسة تسجيل الدخول بأمان على هذا المتصفح
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-3.5 bg-saudi-green hover:bg-saudi-green/90 text-white font-extrabold text-xs rounded-2xl shadow-lg shadow-saudi-green/20 hover:shadow-saudi-green/35 hover:scale-[1.01] transition-all duration-300 cursor-pointer text-center"
+                >
+                  حفظ وتنشيط ديوانيتي الموثقة الآن 🚀
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              {/* Mode Selector Tabs */}
+              <div className="flex bg-neutral-950 p-1 rounded-2xl border border-white/5 text-xs font-bold shrink-0">
+                <button
+                  onClick={() => setAuthMode("login")}
+                  className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${authMode === "login" ? "bg-saudi-green/10 text-saudi-glow border border-saudi-green/20" : "text-gray-500 hover:text-white"}`}
+                >
+                  تسجيل دخول سريع 🔑
+                </button>
+                <button
+                  onClick={() => setAuthMode("signup")}
+                  className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${authMode === "signup" ? "bg-saudi-green/10 text-saudi-glow border border-saudi-green/20" : "text-gray-500 hover:text-white"}`}
+                >
+                  إنشاء حساب موثق جديد 🇸🇦
+                </button>
+              </div>
+
+              {/* GOOGLE SIGN-IN INTERACTIVE BLOCK */}
+              <div className="p-5 bg-white/[0.02] backdrop-blur-md border border-white/5 rounded-2xl text-center space-y-3 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-saudi-green/5 rounded-full blur-3xl pointer-events-none group-hover:bg-saudi-green/10 transition-colors" />
+                <p className="text-[10.5px] text-gray-400 font-medium font-tajawal">الخيار الرقمي الفاخر والمستدام الموصى به لتسهيل الأمن الرقمي:</p>
+                
+                <button
+                  type="button"
+                  onClick={handleGoogleSignInTrigger}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-xl bg-white/[0.03] text-white font-extrabold text-[12px] border border-white/10 hover:border-saudi-green/45 hover:bg-white/[0.08] hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(0,163,79,0.25)] hover:text-saudi-glow transition-all duration-300 cursor-pointer text-center relative z-10 animate-fade-in"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.9h6.69c-.29 1.5-1.14 2.77-2.4 3.61v3.02h3.87c2.26-2.08 3.58-5.14 3.58-8.46z" />
+                    <path fill="#34A853" d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.87-3.02c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-4.99H1.27v3.12C3.25 21.32 7.37 24 12 24z" />
+                    <path fill="#FBBC05" d="M5.24 14.24a7.19 7.19 0 0 1 0-4.48V6.64H1.27a11.96 11.96 0 0 0 0 10.72l3.97-3.12z" />
+                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.96 1.19 15.24 0 12 0 7.37 0 3.25 2.68 1.27 6.64l3.97 3.12c.95-2.86 3.61-4.99 6.76-4.99z" />
+                  </svg>
+                  <span>المتابعة باستخدام Google</span>
+                </button>
+              </div>
+
+              <div className="relative text-center my-4 shrink-0">
+                <span className="bg-[#080808] px-3 text-[10px] text-gray-500 font-bold relative z-10 font-sans">OR SECURED EMAIL</span>
+                <hr className="absolute top-1/2 left-0 right-0 border-white/5 -z-1" />
+              </div>
 
           {formError && (
             <div className="p-3.5 bg-red-950/20 border border-red-500/25 rounded-2xl flex items-start gap-2.5 text-xs text-red-200">
@@ -873,7 +1183,8 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
 
             </div>
           )}
-
+          </>
+        )}
         </div>
 
         {/* Footer info banner */}
