@@ -68,6 +68,8 @@ import {
   UserRole 
 } from "../AdminRouteGuard";
 import { addThreatLog, getDeviceSessions } from "../../utils/securityWatchdogStore";
+import { db } from "../../utils/firebase";
+import { collection, doc, getDocs, setDoc, updateDoc } from "firebase/firestore";
 
 // Mock Analytical Data
 const analyticsData = [
@@ -175,17 +177,59 @@ export default function AdminDashboard() {
       if (saved) return JSON.parse(saved);
     } catch {}
     const initialUsers = [
-      { id: 1, name: "عبدالله الراجحي", username: "a.rajhi", status: "نشط", verified: true, role: "صانع محتوى", balance: 14500, phone: "+966 50 123 4567" },
-      { id: 2, name: "سلطان العتيبي", username: "s.otaibi", status: "محظور", verified: false, role: "مستخدم عادي", balance: 120, phone: "+966 53 987 6543" },
-      { id: 3, name: "ليلى حسن", username: "layla_h", status: "نشط", verified: true, role: "صانع محتوى", balance: 29200, phone: "+966 55 456 7890" },
-      { id: 4, name: "فهد الحربي", username: "fhd_hrb", status: "نشط", verified: false, role: "مستخدم عادي", balance: 0, phone: "+966 54 321 0987" },
-      { id: 5, name: "محمد العمري", username: "m_omari", status: "تحت المراجعة", verified: false, role: "مستخدم عادي", balance: 340, phone: "+966 56 789 0123" },
+      { id: "Preset_1", name: "عبدالله الراجحي", username: "a.rajhi", status: "نشط", verified: true, role: "صانع محتوى", balance: 14500, phone: "+966 50 123 4567" },
+      { id: "Preset_2", name: "سلطان العتيبي", username: "s.otaibi", status: "محظور", verified: false, role: "مستخدم عادي", balance: 120, phone: "+966 53 987 6543" },
+      { id: "Preset_3", name: "ليلى حسن", username: "layla_h", status: "نشط", verified: true, role: "صانع محتوى", balance: 29200, phone: "+966 55 456 7890" },
+      { id: "Preset_4", name: "فهد الحربي", username: "fhd_hrb", status: "نشط", verified: false, role: "مستخدم عادي", balance: 0, phone: "+966 54 321 0987" },
+      { id: "Preset_5", name: "محمد العمري", username: "m_omari", status: "تحت المراجعة", verified: false, role: "مستخدم عادي", balance: 340, phone: "+966 56 789 0123" },
     ];
     try {
       localStorage.setItem("snns_users_records", JSON.stringify(initialUsers));
     } catch {}
     return initialUsers;
   });
+
+  // Load real users dynamically from Firestore
+  React.useEffect(() => {
+    const fetchRealFirestoreUsers = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const realUsers: any[] = [];
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          realUsers.push({
+            id: data.id || docSnap.id,
+            name: data.name || "مستخدم موثق",
+            username: data.username || "user",
+            status: data.status || "نشط",
+            verified: data.verified !== false,
+            role: data.role === "super_admin" ? "مدير النظام" : (data.accountType === "business" ? "قطاع أعمال معتمد" : "مستخدم عادي"),
+            balance: data.balance || 0,
+            phone: data.phone || ""
+          });
+        });
+        
+        // If we have real users, merge them with presets seamlessly - placing real ones FIRST!
+        if (realUsers.length > 0) {
+          const filteredPresets = [
+            { id: "Preset_1", name: "عبدالله الراجحي", username: "a.rajhi", status: "نشط", verified: true, role: "صانع محتوى", balance: 14500, phone: "+966 50 123 4567" },
+            { id: "Preset_2", name: "سلطان العتيبي", username: "s.otaibi", status: "محظور", verified: false, role: "مستخدم عادي", balance: 120, phone: "+966 53 987 6543" },
+          ];
+          const combined = [...realUsers];
+          filteredPresets.forEach(preset => {
+            if (!combined.some(u => u.username.toLowerCase() === preset.username.toLowerCase())) {
+              combined.push(preset);
+            }
+          });
+          setUsersList(combined);
+          localStorage.setItem("snns_users_records", JSON.stringify(combined));
+        }
+      } catch (err) {
+        console.error("Failed to load real users from Firestore in Admin:", err);
+      }
+    };
+    fetchRealFirestoreUsers();
+  }, []);
 
   const [creatorsList, setCreatorsList] = useState<any[]>([]);
 
@@ -603,19 +647,39 @@ export default function AdminDashboard() {
     u.phone.includes(searchTerm)
   );
 
-  const handleCreateUserSubmit = (e: React.FormEvent) => {
+  const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserName || !newUserUsername) return;
+    const generatedId = "admin_created_" + Math.floor(Math.random() * 900000);
     const added = {
-      id: Date.now(),
+      id: generatedId,
       name: newUserName,
       username: newUserUsername.toLowerCase(),
       status: "نشط",
-      verified: false,
+      verified: true,
       role: newUserRole,
       balance: 0,
       phone: "+966 50 " + Math.floor(1000000 + Math.random() * 9000000)
     };
+
+    try {
+      await setDoc(doc(db, "users", generatedId), {
+        id: generatedId,
+        name: added.name,
+        username: added.username,
+        status: added.status,
+        verified: added.verified,
+        role: newUserRole === "مدير النظام" ? "super_admin" : (newUserRole === "صانع محتوى" ? "user" : "user"),
+        balance: added.balance,
+        phone: added.phone,
+        accountType: "individual",
+        joinDate: "مايو ٢٠٢٦"
+      });
+      console.log("Registered new user directly in Firestore:", generatedId);
+    } catch (fsErr) {
+      console.error("Failed to set user in Firestore:", fsErr);
+    }
+
     setUsersList(prev => {
       const updated = [added, ...prev];
       localStorage.setItem("snns_users_records", JSON.stringify(updated));
@@ -626,37 +690,55 @@ export default function AdminDashboard() {
     setNewUserUsername("");
   };
 
-  const toggleUserStatus = (userId: number) => {
-    setUsersList(prev => {
-      const updated = prev.map(u => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            status: u.status === "نشط" ? "محظور" : "نشط"
-          };
-        }
-        return u;
-      });
-      localStorage.setItem("snns_users_records", JSON.stringify(updated));
-      return updated;
+  const toggleUserStatus = async (userId: any) => {
+    let targetUser: any = null;
+    const updated = usersList.map(u => {
+      if (u.id === userId) {
+        const newStatus = u.status === "نشط" ? "محظور" : "نشط";
+        targetUser = { ...u, status: newStatus };
+        return targetUser;
+      }
+      return u;
     });
+
+    if (targetUser) {
+      try {
+        await updateDoc(doc(db, "users", String(userId)), {
+          status: targetUser.status
+        });
+        console.log("Updated user status in Firestore:", userId);
+      } catch (fsErr) {
+        console.error("Firestore Update Status Error:", fsErr);
+      }
+    }
+
+    setUsersList(updated);
+    localStorage.setItem("snns_users_records", JSON.stringify(updated));
   };
 
-  const promoteToCreator = (userId: number) => {
-    setUsersList(prev => {
-      const updated = prev.map(u => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            role: "صانع محتوى",
-            verified: true
-          };
-        }
-        return u;
-      });
-      localStorage.setItem("snns_users_records", JSON.stringify(updated));
-      return updated;
+  const promoteToCreator = async (userId: any) => {
+    let targetUser: any = null;
+    const updated = usersList.map(u => {
+      if (u.id === userId) {
+        targetUser = { ...u, role: "صانع محتوى", verified: true };
+        return targetUser;
+      }
+      return u;
     });
+
+    if (targetUser) {
+      try {
+        await updateDoc(doc(db, "users", String(userId)), {
+          verified: true
+        });
+        console.log("Promoted user to Creator / Verified in Firestore:", userId);
+      } catch (fsErr) {
+        console.error("Firestore Update Verified Error:", fsErr);
+      }
+    }
+
+    setUsersList(updated);
+    localStorage.setItem("snns_users_records", JSON.stringify(updated));
   };
 
   const handleResetToGoogleDefault = () => {

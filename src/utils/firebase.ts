@@ -1,6 +1,10 @@
 // firebase.ts - الإعداد والربط المركزي لقاعدة بيانات وخدمة الهوية لـ SNNS.PRO
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { 
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  signInWithPhoneNumber, RecaptchaVerifier, EmailAuthProvider, PhoneAuthProvider
+} from "firebase/auth";
 import { 
   getFirestore, doc, getDoc, setDoc, updateDoc, 
   collection, addDoc, getDocs, query, where, 
@@ -71,5 +75,7 @@ export {
   doc, getDoc, setDoc, updateDoc, 
   collection, addDoc, getDocs, query, where, 
   orderBy, onSnapshot, limit, serverTimestamp,
-  signInWithPopup, signOut
+  signInWithPopup, signOut,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  signInWithPhoneNumber, RecaptchaVerifier
 };

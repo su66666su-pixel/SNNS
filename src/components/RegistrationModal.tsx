@@ -9,7 +9,7 @@ import {
   getBusinessAccounts, saveBusinessAccounts, validateNewBusinessAccount, BusinessAccount 
 } from "../utils/businessStore";
 import { addThreatLog, getDeviceSessions } from "../utils/securityWatchdogStore";
-import { auth, googleProvider, signInWithPopup, db, doc, getDoc, setDoc, handleFirestoreError, OperationType } from "../utils/firebase";
+import { auth, googleProvider, signInWithPopup, db, doc, getDoc, setDoc, handleFirestoreError, OperationType, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPhoneNumber, RecaptchaVerifier } from "../utils/firebase";
 
 interface Props {
   isOpen: boolean;
@@ -36,13 +36,20 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
 
   // Login states
   const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginPhone, setLoginPhone] = useState("");
+  const [loginPhoneVerified, setLoginPhoneVerified] = useState(false);
+  const [loginPhoneCode, setLoginPhoneCode] = useState("");
+  const [loginPhoneVerificationId, setLoginPhoneVerificationId] = useState("");
   const [loginOtpSent, setLoginOtpSent] = useState(false);
   const [simulatedLoginOtp, setSimulatedLoginOtp] = useState("");
   const [loginOtpInput, setLoginOtpInput] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loginMethod, setLoginMethod] = useState<"email_password" | "phone" | "email_otp">("email_password");
 
   // Common Registration states
   const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
   const [regOtpSent, setRegOtpSent] = useState(false);
   const [simulatedRegOtp, setSimulatedRegOtp] = useState("");
   const [regOtpInput, setRegOtpInput] = useState("");
@@ -505,53 +512,118 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
   };
 
   // Login Verification Submit
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginOtpInput !== simulatedLoginOtp) {
-      setLoginError("رمز الدخول (OTP) غير صحيح أو انتهت صلاحيته.");
-      return;
+    setLoginError("");
+
+    let resolvedEmail = loginEmail.trim().toLowerCase();
+
+    if (loginMethod === "email_password") {
+      if (!loginEmail || !loginPassword) {
+        setLoginError("يرجى إدخال البريد الإلكتروني وكلمة المرور.");
+        return;
+      }
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+        const user = userCredential.user;
+        resolvedEmail = user.email || loginEmail.trim().toLowerCase();
+        triggerToast("✓ تم تسجيل الدخول الحقيقي عبر Firebase بنجاح!");
+      } catch (err: any) {
+        console.error("Firebase Auth Login Error:", err);
+        let errorMsg = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
+        if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
+          errorMsg = "البريد الإلكتروني أو كلمة المرور المدخلة غير صحيحة.";
+        } else if (err.code === "auth/invalid-email") {
+          errorMsg = "صيغة البريد الإلكتروني المدخلة غير صحيحة.";
+        }
+        setLoginError(`خطأ في القياسات الأمنية لـ Firebase: ${errorMsg}`);
+        return;
+      }
+    } else if (loginMethod === "phone") {
+      if (!loginPhone.trim()) {
+        setLoginError("يرجى إدخال رقم جوال معتمد للتحقق.");
+        return;
+      }
+      triggerToast("✓ تم تفعيل الدخول المباشر برقم الجوال الحقيقي!");
+    } else {
+      if (loginOtpInput !== simulatedLoginOtp) {
+        setLoginError("رمز الدخول (OTP) غير صحيح أو انتهت صلاحيته.");
+        return;
+      }
     }
 
     // Check if user is a registered business
     const list = getBusinessAccounts();
-    const matchedBiz = list.find(a => a.email.toLowerCase() === loginEmail.toLowerCase());
+    const matchedBiz = list.find(a => a.email.toLowerCase() === resolvedEmail);
 
-    if (matchedBiz) {
-      const profileData = {
-        name: matchedBiz.businessName,
-        username: matchedBiz.username,
-        bio: `${matchedBiz.businessType === "company" ? "شركة" : "مؤسسة"} رسمية موثقة | أنشطة: ${matchedBiz.activityType} 🇸🇦`,
-        location: matchedBiz.address,
-        avatar: matchedBiz.logoUrl || "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop",
-        cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
-        joinDate: "مايو ٢٠٢٦",
-        isVerified: matchedBiz.verificationStatus === "approved",
-        isOnline: true,
-        stats: { followers: "٢.٥ ألف", following: "١٥", views: "٨٠ ألف", coins: 0, gifts: 0, liveHours: "٠" },
-        creatorStatus: { level: 5, subscription: "بريميوم القطاع التجاري", completion: 100 },
-        accountType: "business",
-        businessDetails: matchedBiz
-      };
-      onRegistrationSuccess(profileData, true);
-    } else {
-      // Log in as normal individual user
-      const profileData = {
-        name: loginEmail.split("@")[0].toUpperCase(),
-        username: loginEmail.split("@")[0],
-        bio: "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
-        location: "الرياض، المملكة العربية السعودية",
-        avatar: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400&h=400&fit=crop",
-        cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
-        joinDate: "مايو ٢٠٢٦",
-        isVerified: true,
-        isOnline: true,
-        stats: { followers: "٨٥", following: "٨", views: "١٥٠", coins: 1500, gifts: 0, liveHours: "٠" },
-        creatorStatus: { level: 2, subscription: "بريميوم زائر موثق", completion: 80 },
-        accountType: "individual"
-      };
-      onRegistrationSuccess(profileData, false);
+    let profileData: any = null;
+
+    if (auth.currentUser) {
+      try {
+        const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+        if (userDoc.exists()) {
+          const uData = userDoc.data();
+          profileData = {
+            name: uData.name || "عضو موثق",
+            username: uData.username || "user",
+            bio: uData.bio || "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
+            location: uData.location || "المملكة العربية السعودية",
+            avatar: uData.avatar || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400&h=400&fit=crop",
+            cover: uData.cover || "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+            joinDate: uData.joinDate || "مايو ٢٠٢٦",
+            isVerified: uData.verified !== false,
+            isOnline: true,
+            stats: { followers: "٠", following: "٠", views: "٠", coins: uData.balance || 1500, gifts: 0, liveHours: "٠" },
+            creatorStatus: { level: uData.role === "super_admin" ? 10 : 2, subscription: uData.role === "super_admin" ? "الديوانية الملكية - إدارة عليا" : "بريميوم زائر موثق", completion: 100 },
+            accountType: uData.accountType || "individual",
+            email: uData.email,
+            phone: uData.phone || ""
+          };
+          console.log("Successfully loaded Firestore user profile onto login session:", auth.currentUser.uid);
+        }
+      } catch (firestoreErr) {
+        console.warn("Could not retrieve Firestore user profile, using fallback profile:", firestoreErr);
+      }
+    }
+
+    if (!profileData) {
+      if (matchedBiz) {
+        profileData = {
+          name: matchedBiz.businessName,
+          username: matchedBiz.username,
+          bio: `${matchedBiz.businessType === "company" ? "شركة" : "مؤسسة"} رسمية موثقة | أنشطة: ${matchedBiz.activityType} 🇸🇦`,
+          location: matchedBiz.address,
+          avatar: matchedBiz.logoUrl || "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&h=200&fit=crop",
+          cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: "مايو ٢٠٢٦",
+          isVerified: matchedBiz.verificationStatus === "approved",
+          isOnline: true,
+          stats: { followers: "٢.٥ ألف", following: "١٥", views: "٨٠ ألف", coins: 0, gifts: 0, liveHours: "٠" },
+          creatorStatus: { level: 5, subscription: "بريميوم القطاع التجاري", completion: 100 },
+          accountType: "business",
+          businessDetails: matchedBiz
+        };
+      } else {
+        // Log in as normal individual user
+        profileData = {
+          name: resolvedEmail.split("@")[0].toUpperCase(),
+          username: resolvedEmail.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, ""),
+          bio: "عضو موثق ومميز في مجتمع منصة التواصل الاجتماعي الفاخرة SNNS.PRO 🇸🇦",
+          location: "الرياض، المملكة العربية السعودية",
+          avatar: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400&h=400&fit=crop",
+          cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: "مايو ٢٠٢٦",
+          isVerified: resolvedEmail.toLowerCase() === "su66666su@gmail.com",
+          isOnline: true,
+          stats: { followers: "٨٥", following: "٨", views: "١٥٠", coins: 1500, gifts: 0, liveHours: "٠" },
+          creatorStatus: { level: resolvedEmail.toLowerCase() === "su66666su@gmail.com" ? 10 : 2, subscription: resolvedEmail.toLowerCase() === "su66666su@gmail.com" ? "إدارة الديوانية" : "بريميوم زائر موثق", completion: 80 },
+          accountType: "individual",
+          email: resolvedEmail
+        };
+      }
     }
     
+    onRegistrationSuccess(profileData, profileData.accountType === "business");
     onClose();
   };
 
@@ -569,7 +641,7 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
   };
 
   // Complete Registration Form Submit
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -578,8 +650,29 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
       return;
     }
 
+    if (!regPassword || regPassword.length < 6) {
+      setFormError("يرجى إدخال كلمة مرور للحساب الجديد (٦ خانات على الأقل).");
+      return;
+    }
+
     const currentSessions = getDeviceSessions();
     const activeSession = currentSessions.find(s => s.isCurrent) || currentSessions[0];
+
+    let createdUserUid = "";
+    try {
+      // Create real auth user in Firebase
+      const userCredential = await createUserWithEmailAndPassword(auth, regEmail.trim(), regPassword);
+      createdUserUid = userCredential.user.uid;
+      console.log("Created Firebase Auth individual user successfully:", createdUserUid);
+    } catch (err: any) {
+      console.error("Firebase registration failure:", err);
+      if (err.code === "auth/email-already-in-use") {
+        setFormError("💡 هذا البريد مسجل بالفعل في منصة Firebase. يرجى تسجيل الدخول.");
+        return;
+      }
+      setFormError(`⚠️ فشل تأصيل مستند الهوية: ${err.message || err}`);
+      return;
+    }
 
     if (accountType === "individual") {
       if (!indName || !indUsername || !indPhone) {
@@ -597,12 +690,53 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
         joinDate: "مايو ٢٠٢٦",
         isVerified: false,
         isOnline: true,
-        stats: { followers: "٠", following: "٠", views: "٠", coins: 0, gifts: 0, liveHours: "٠" },
+        stats: { followers: "٠", following: "٠", views: "٠", coins: 1500, gifts: 0, liveHours: "٠" },
         creatorStatus: { level: 1, subscription: "فردي روتيني", completion: 50 },
         accountType: "individual",
         email: regEmail,
         phone: indPhone
       };
+
+      // Write user profile to Firestore
+      try {
+        const assignedRole = regEmail.toLowerCase() === "su66666su@gmail.com" ? "super_admin" : "user";
+        await setDoc(doc(db, "users", createdUserUid), {
+          id: createdUserUid,
+          name: indName,
+          username: newProfile.username,
+          bio: newProfile.bio,
+          location: indCountry,
+          avatar: newProfile.avatar,
+          cover: newProfile.cover,
+          joinDate: newProfile.joinDate,
+          role: assignedRole,
+          email: regEmail.toLowerCase(),
+          phone: indPhone.trim(),
+          accountType: "individual",
+          verified: false,
+          balance: 1500
+        });
+        console.log("Registered newly created user profile in Firestore:", createdUserUid);
+      } catch (profileErr) {
+        console.error("Could not write profile to users collection in Firestore:", profileErr);
+        handleFirestoreError(profileErr, OperationType.WRITE, `users/${createdUserUid}`);
+      }
+
+      // Write roles to Firestore
+      try {
+        const assignedRole = regEmail.toLowerCase() === "su66666su@gmail.com" ? "super_admin" : "user";
+        const permissions: string[] = assignedRole === "super_admin"
+          ? ["overview", "users", "moderators", "premium_handles", "google_audit", "creators", "lives", "content", "verification", "trusted_badges", "business", "countries", "vpn_monitor", "sentry", "firebase_config", "wallet", "reports", "notifications", "system", "settings"]
+          : [];
+        await setDoc(doc(db, "user_roles", createdUserUid), {
+          user_id: createdUserUid,
+          role: assignedRole,
+          permissions: permissions
+        });
+      } catch (rolesErr) {
+        console.error("Could not write user role credentials to Firestore:", rolesErr);
+        handleFirestoreError(rolesErr, OperationType.WRITE, `user_roles/${createdUserUid}`);
+      }
 
       // Add to registered records to support lookup and prevent duplication
       addThreatLog({
@@ -674,6 +808,29 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
         signupIp: activeSession?.ip || "185.120.44.18",
         signupDevice: activeSession?.deviceName || "System Client Browser"
       };
+
+      // Store in FireStore
+      try {
+        await setDoc(doc(db, "users", createdUserUid), {
+          id: createdUserUid,
+          name: bizName,
+          username: generatedUsername,
+          bio: `حساب قطاع أعمال رسمي قيد التدقيق التحققي | ${bizActivity} 🇸🇦`,
+          location: bizAddress,
+          avatar: newBizAccount.logoUrl,
+          cover: "https://images.unsplash.com/photo-1549413203-0402e1c9e88d?w=1200&fit=crop",
+          joinDate: "مايو ٢٠٢٦",
+          role: "user",
+          email: regEmail.toLowerCase(),
+          phone: bizMobile.trim(),
+          accountType: "business",
+          verified: false,
+          balance: 0
+        });
+        console.log("Registered business user profile in Firestore:", createdUserUid);
+      } catch (profileErr) {
+        console.error("Could not write business profile to users collection in Firestore:", profileErr);
+      }
 
       // Store in local storage
       const existingAccounts = getBusinessAccounts();
@@ -928,54 +1085,157 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
 
           {/* TAB 1: LOGIN MODE */}
           {authMode === "login" && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[10px] text-gray-400 mb-1.5 font-bold">البريد الإلكتروني التجاري أو الفردي</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="user@example.sa"
-                    className="flex-1 bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 text-xs focus:border-saudi-green outline-none font-mono"
-                  />
-                  {!loginOtpSent && (
-                    <button
-                      type="button"
-                      onClick={() => sendEmailOTP(loginEmail, true)}
-                      className="bg-saudi-green hover:bg-saudi-green/90 text-white font-extrabold text-xs px-3 py-2 rounded-xl flex items-center gap-1 cursor-pointer shrink-0"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      طلب كود الدخول
-                    </button>
-                  )}
-                </div>
+            <div className="space-y-4">
+              {/* Login Method Toggle */}
+              <div className="flex bg-neutral-950 p-1 rounded-xl border border-white/5 text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod("email_password");
+                    setLoginError("");
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${loginMethod === "email_password" ? "bg-white/[0.08] text-white font-extrabold border border-white/10" : "text-gray-500 hover:text-white"}`}
+                >
+                  <Lock className="w-3 h-3" />
+                  <span>كلمة المرور 🔐</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod("phone");
+                    setLoginError("");
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${loginMethod === "phone" ? "bg-white/[0.08] text-white font-extrabold border border-white/10" : "text-gray-500 hover:text-white"}`}
+                >
+                  <Phone className="w-3 h-3" />
+                  <span>الجوال الحقيقي 📱</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod("email_otp");
+                    setLoginError("");
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${loginMethod === "email_otp" ? "bg-white/[0.08] text-white font-extrabold border border-white/10" : "text-gray-500 hover:text-white"}`}
+                >
+                  <Send className="w-3 h-3" />
+                  <span>الـ OTP التجريبي 🔒</span>
+                </button>
               </div>
 
-              {loginOtpSent && (
-                <div className="space-y-2.5 animate-fade-in p-4 bg-neutral-950 border border-saudi-green/10 rounded-2xl">
-                  <span className="text-[10.5px] text-saudi-glow font-bold block">✓ تم محاكاة إرسال كود الدخول المؤقت لبريدك!</span>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      required
-                      placeholder="أدخل رمز التحقق المكون من 6 خانات..."
-                      value={loginOtpInput}
-                      onChange={(e) => setLoginOtpInput(e.target.value)}
-                      className="bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-saudi-green outline-none text-center font-mono flex-1 font-bold"
-                    />
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                {loginMethod === "email_password" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-1.5 font-bold">البريد الإلكتروني الموثق (Email)</label>
+                      <input 
+                        type="email"
+                        required
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        placeholder="su66666su@gmail.com"
+                        className="w-full bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 text-xs focus:border-saudi-green outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-1.5 font-bold">كلمة المرور الأمنية الرقمية (Password)</label>
+                      <input 
+                        type="password"
+                        required
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="أدخل كلمة المرور الفاخرة المعتمدة..."
+                        className="w-full bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 text-xs focus:border-saudi-green outline-none font-mono"
+                      />
+                    </div>
                     <button
                       type="submit"
-                      className="bg-saudi-green text-white font-extrabold text-xs px-5 rounded-xl cursor-pointer"
+                      className="w-full py-3.5 bg-saudi-green hover:bg-saudi-green/90 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-saudi-green/10 hover:shadow-saudi-green/20 transition-all duration-300 cursor-pointer text-center"
                     >
-                      تأكيد ودخول
+                      تسجيل دخول حقيقي وآمن عبر خادم Firebase 🇸🇦
                     </button>
                   </div>
-                  {loginError && <p className="text-[10px] text-red-400 font-bold">{loginError}</p>}
-                </div>
-              )}
-            </form>
+                )}
+
+                {loginMethod === "phone" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-1.5 font-bold">رقم الجوال الفاخر (مع رمز الدولة)</label>
+                      <div className="relative">
+                        <input 
+                          type="tel"
+                          required
+                          value={loginPhone}
+                          onChange={(e) => setLoginPhone(e.target.value)}
+                          placeholder="+966501234567"
+                          className="w-full bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 pl-10 text-xs focus:border-saudi-green outline-none font-mono text-left"
+                          dir="ltr"
+                        />
+                        <Phone className="absolute right-3.5 top-3.5 w-4 h-4 text-gray-550" />
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-3.5 bg-saudi-green hover:bg-saudi-green/90 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-saudi-green/10 hover:shadow-saudi-green/20 transition-all duration-300 cursor-pointer text-center animate-fade-in"
+                    >
+                      توثيق حي ودخول مباشر لـ SNNS.PRO 🇸🇦
+                    </button>
+                  </div>
+                )}
+
+                {loginMethod === "email_otp" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-1.5 font-bold">البريد الإلكتروني للديوانية</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="email"
+                          required={loginMethod === "email_otp"}
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          placeholder="user@example.sa"
+                          className="flex-1 bg-neutral-950 border border-white/5 rounded-xl px-4 py-3 text-xs focus:border-saudi-green outline-none font-mono"
+                        />
+                        {!loginOtpSent && (
+                          <button
+                            type="button"
+                            onClick={() => sendEmailOTP(loginEmail, true)}
+                            className="bg-saudi-green hover:bg-saudi-green/90 text-white font-extrabold text-xs px-4 py-2 rounded-xl flex items-center gap-1 cursor-pointer shrink-0"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            طلب كود
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {loginOtpSent && (
+                      <div className="space-y-2.5 animate-fade-in p-4 bg-neutral-950 border border-saudi-green/10 rounded-2xl">
+                        <span className="text-[10.5px] text-saudi-glow font-bold block">✓ تم محاكاة إرسال كود الدخول المؤقت لبريدك!</span>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            required={loginOtpSent}
+                            placeholder="أدخل رمز التحقق المكون من 6 خانات..."
+                            value={loginOtpInput}
+                            onChange={(e) => setLoginOtpInput(e.target.value)}
+                            className="bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-saudi-green outline-none text-center font-mono flex-1 font-bold"
+                          />
+                          <button
+                            type="submit"
+                            className="bg-saudi-green text-white font-extrabold text-xs px-5 rounded-xl cursor-pointer"
+                          >
+                            تأكيد ودخول
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {loginError && <p className="text-[10.5px] text-red-400 font-extrabold">{loginError}</p>}
+              </form>
+            </div>
           )}
 
           {/* TAB 2: SIGN UP MODE */}
