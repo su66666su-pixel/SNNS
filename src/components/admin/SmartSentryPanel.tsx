@@ -5,14 +5,15 @@ import {
   RefreshCw, Ban, UserX, Unlock, Eye, EyeOff, Globe, Sparkles, 
   Fingerprint, HelpCircle, Flame, Shield, Play, Trash2, KeyRound,
   RotateCcw, Search, ExternalLink, HelpCircle as InfoIcon,
-  FileText, Printer, X, Calendar
+  FileText, Printer, X, Calendar, Smartphone, Laptop
 } from "lucide-react";
 import { 
   getThreatLogs, saveThreatLogs, SecurityThreatLog,
   getBlockedIpsList, saveBlockedIpsList,
   getUserSecurityProfile, saveUserSecurityProfile, UserSecurityProfile,
   hasSecurityAccess, maskIpAddress, maskDeviceName, addThreatLog,
-  evaluateSentryThreat, ThreatRiskLevel
+  evaluateSentryThreat, ThreatRiskLevel,
+  getDeviceSessions, terminateDeviceSession, DeviceSession
 } from "../../utils/securityWatchdogStore";
 import { db, collection, onSnapshot, query, orderBy, limit } from "../../utils/firebase";
 import { 
@@ -26,6 +27,7 @@ export default function SmartSentryPanel() {
   const [logs, setLogs] = useState<SecurityThreatLog[]>(() => getThreatLogs());
   const [blockedIps, setBlockedIps] = useState<string[]>(() => getBlockedIpsList());
   const [userSec, setUserSec] = useState<UserSecurityProfile>(() => getUserSecurityProfile());
+  const [sessions, setSessions] = useState<DeviceSession[]>(() => getDeviceSessions());
   const [viewUnmasked, setViewUnmasked] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRiskFilter, setSelectedRiskFilter] = useState<string>("all");
@@ -165,12 +167,21 @@ export default function SmartSentryPanel() {
       setLogs(getThreatLogs());
       setBlockedIps(getBlockedIpsList());
       setUserSec(getUserSecurityProfile());
+      setSessions(getDeviceSessions());
     };
     window.addEventListener("snns_sentry_threat_added", handleNewThreatLog);
     return () => {
       window.removeEventListener("snns_sentry_threat_added", handleNewThreatLog);
     };
   }, []);
+
+  const handleRemoteLogout = (sessionId: string, deviceName: string) => {
+    if (confirm(`هل أنت متأكد من رغبتك في إجهاض أو إنهاء جلسة الدخول للجهاز "${deviceName}" وسحب الترخيص عنه بقوة؟`)) {
+      const remainingUpdated = terminateDeviceSession(sessionId);
+      setSessions(remainingUpdated);
+      showToast(`✓ تم تسجيل الخروج عن بُعد للجهاز "${deviceName}" بنجاح.`);
+    }
+  };
 
   // Flush Sentry threat logs
   const handleClearLogs = () => {
@@ -589,6 +600,137 @@ export default function SmartSentryPanel() {
               {fcmToken ? `${fcmToken.substring(0, 15)}...${fcmToken.substring(fcmToken.length - 8)}` : "جاري التوليد..."}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* 📱 الأجهزة النشطة والتحكم عن بعد بمعدلات الدخول (Active Sessions) */}
+      <div className="p-6 bg-[#080808]/50 border border-white/5 rounded-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-white/5">
+          <div className="text-right">
+            <h3 className="font-black text-sm text-white flex items-center gap-2">
+              <Users className="w-5 h-5 text-saudi-glow" />
+              أحدث الأجهزة والجلسات النشطة على المنصة (Active Device Sessions)
+            </h3>
+            <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+              يعرض هذا الجدول جميع ملقنات الدخول الجارية والموثقة للمستخدمين، مع إمكانية إنهاء الجلسات فورياً وطرد الأجهزة الغريبة عن بُعد.
+            </p>
+          </div>
+          <span className="px-2.5 py-1 bg-saudi-green/10 text-saudi-glow border border-saudi-green/20 rounded-lg text-[10px] font-bold shrink-0">
+            إجمالي الأجهزة النشطة: {sessions.length}
+          </span>
+        </div>
+
+        {/* Responsive Interactive Table */}
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-right border-collapse text-xs whitespace-nowrap md:whitespace-normal">
+            <thead>
+              <tr className="border-b border-white/5 text-gray-400 text-[11px] font-bold text-right">
+                <th className="pb-3 pt-1 px-3">الجهاز والمنصة</th>
+                <th className="pb-3 pt-1 px-3">المتصفح والمحرك</th>
+                <th className="pb-3 pt-1 px-3">عنوان الـ IP</th>
+                <th className="pb-3 pt-1 px-3">المنطقة والشبكة</th>
+                <th className="pb-3 pt-1 px-3 text-center">آخر ظهور / نشاط</th>
+                <th className="pb-3 pt-1 px-3 text-center">حالة الحماية</th>
+                <th className="pb-3 pt-1 px-4 text-left">إجراء فوري</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {sessions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-gray-500 font-bold">
+                    🟢 لا توجد أي دورات هويات نشطة مسجلة في الوقت الحاضر.
+                  </td>
+                </tr>
+              ) : (
+                sessions.map((sess) => (
+                  <tr key={sess.id} className="hover:bg-white/[0.01] transition-colors">
+                    {/* Device & Platform */}
+                    <td className="py-3.5 px-3 font-bold text-white">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-1.5 bg-white/5 rounded-lg border border-white/5 text-saudi-glow shrink-0">
+                          {sess.deviceName.toLowerCase().includes("mac") || sess.deviceName.toLowerCase().includes("pc") || sess.deviceName.toLowerCase().includes("linux") ? (
+                            <Laptop className="w-4 h-4" />
+                          ) : (
+                            <Smartphone className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span>{sess.deviceName}</span>
+                          {sess.isCurrent && (
+                            <span className="text-[9px] text-[#00a34f] bg-[#00a34f]/10 border border-[#00a34f]/25 rounded px-2 py-0.5 mt-0.5 w-fit font-black">
+                              جهازك الحالي (Super Admin)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Browser Engine */}
+                    <td className="py-3.5 px-3 text-gray-350 font-mono">
+                      {sess.browser}
+                    </td>
+
+                    {/* Masked/Unmasked IP */}
+                    <td className="py-3.5 px-3 text-gray-350 font-mono">
+                      {viewUnmasked ? sess.ip : maskIpAddress(sess.ip)}
+                    </td>
+
+                    {/* Country & ISP Network */}
+                    <td className="py-3.5 px-3 text-gray-300">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base" role="img" aria-label={sess.country}>
+                          {sess.flag}
+                        </span>
+                        <div className="flex flex-col">
+                          <span>{sess.country}</span>
+                          <span className="text-[10px] text-gray-500 font-mono">
+                            {sess.countryCode === "SA" ? "STC Broadband" : "Foreign Proxy Tunnel"}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Activity Timestamp */}
+                    <td className="py-3.5 px-3 text-center text-gray-400 font-mono">
+                      {sess.timestamp}
+                    </td>
+
+                    {/* Trust status */}
+                    <td className="py-3.5 px-3 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                        sess.isTrusted 
+                          ? "bg-saudi-green/10 border-saudi-green/30 text-saudi-glow" 
+                          : "bg-red-500/10 border-red-500/30 text-red-400"
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${sess.isTrusted ? "bg-saudi-green" : "bg-red-500 animate-pulse"}`} />
+                        {sess.isTrusted ? "موثوق وآمن" : "جلسة مشبوهة / مغتربة"}
+                      </span>
+                    </td>
+
+                    {/* Quick Remote logout action */}
+                    <td className="py-3.5 px-4 text-left">
+                      {sess.isCurrent ? (
+                        <button
+                          disabled
+                          className="py-1 px-3 bg-white/5 text-gray-500 text-[10px] rounded-lg border border-white/5 cursor-not-allowed opacity-60 font-bold"
+                          title="لا يمكنك إنهاء جلستك النشطة من هنا لمنع إغلاق لوحة التحكم"
+                        >
+                          جلستك نشطة
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleRemoteLogout(sess.id, sess.deviceName)}
+                          className="py-1 px-3 bg-red-400/10 hover:bg-red-500/20 text-red-400 hover:text-red-350 text-[10px] font-bold rounded-lg border border-red-500/20 hover:border-red-500/40 transition-all cursor-pointer"
+                        >
+                          طرد وإنهاء الجلسة 🔒
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

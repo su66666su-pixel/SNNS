@@ -7,7 +7,7 @@ import {
   Sparkles, Award, Users, ShieldCheck, Heart, Eye, Bell,
   Loader2, CheckCircle2, AlertCircle, Check, User, Phone, Tag, Camera, Shield as ShieldIcon, Globe
 } from "lucide-react";
-import { auth, googleProvider, signInWithPopup, db } from "../utils/firebase";
+import { auth, googleProvider, signInWithPopup, db, handleFirestoreError, OperationType } from "../utils/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { getBusinessAccounts, saveBusinessAccounts } from "../utils/businessStore";
@@ -377,26 +377,38 @@ export default function LandingPage() {
         }
 
         // Save to user_roles
-        await setDoc(doc(db, "user_roles", loggedUser.uid), {
-          user_id: loggedUser.uid,
-          role: role,
-          permissions: permissions
-        });
+        try {
+          await setDoc(doc(db, "user_roles", loggedUser.uid), {
+            user_id: loggedUser.uid,
+            role: role,
+            permissions: permissions
+          });
+          console.log("Successfully wrote user_role to Firestore:", loggedUser.uid);
+        } catch (roleErr) {
+          console.error("Could not write role to user_roles collection in Firestore:", roleErr);
+          handleFirestoreError(roleErr, OperationType.WRITE, `user_roles/${loggedUser.uid}`);
+        }
 
         // Save to users
-        await setDoc(doc(db, "users", loggedUser.uid), {
-          id: loggedUser.uid,
-          name: profileObj.name,
-          username: profileObj.username,
-          bio: profileObj.bio || "",
-          location: profileObj.location || "",
-          avatar: profileObj.avatar || "",
-          cover: profileObj.cover || "",
-          joinDate: profileObj.joinDate || "",
-          role: role,
-          email: profileObj.email || "",
-          phone: profileObj.phone || ""
-        });
+        try {
+          await setDoc(doc(db, "users", loggedUser.uid), {
+            id: loggedUser.uid,
+            name: profileObj.name,
+            username: profileObj.username,
+            bio: profileObj.bio || "",
+            location: profileObj.location || "",
+            avatar: profileObj.avatar || "",
+            cover: profileObj.cover || "",
+            joinDate: profileObj.joinDate || "",
+            role: role,
+            email: profileObj.email || "",
+            phone: profileObj.phone || ""
+          });
+          console.log("Successfully wrote user profile to Firestore:", loggedUser.uid);
+        } catch (profileErr) {
+          console.error("Could not write profile to users collection in Firestore:", profileErr);
+          handleFirestoreError(profileErr, OperationType.WRITE, `users/${loggedUser.uid}`);
+        }
       } catch (err) {
         console.error("Could not write role/profile to Firestore:", err);
       }

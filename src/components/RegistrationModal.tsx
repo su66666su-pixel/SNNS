@@ -9,7 +9,7 @@ import {
   getBusinessAccounts, saveBusinessAccounts, validateNewBusinessAccount, BusinessAccount 
 } from "../utils/businessStore";
 import { addThreatLog, getDeviceSessions } from "../utils/securityWatchdogStore";
-import { auth, googleProvider, signInWithPopup, db, doc, getDoc, setDoc } from "../utils/firebase";
+import { auth, googleProvider, signInWithPopup, db, doc, getDoc, setDoc, handleFirestoreError, OperationType } from "../utils/firebase";
 
 interface Props {
   isOpen: boolean;
@@ -371,6 +371,7 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
     // Save into Firestore users & roles if Google User UID is available!
     const rawUid = googleUserOnboard.id.startsWith("G_") ? googleUserOnboard.id.substring(2) : googleUserOnboard.id;
     if (rawUid && !rawUid.startsWith("PRESET_") && !rawUid.startsWith("USER_")) {
+      // 1. Try to write user profile
       try {
         await setDoc(doc(db, "users", rawUid), {
           id: rawUid,
@@ -387,16 +388,24 @@ export default function RegistrationModal({ isOpen, onClose, onRegistrationSucce
           accountType: onboardAccountType,
           verified: profileData.isVerified
         });
+        console.log("Registered user profile to Firestore database:", rawUid);
+      } catch (profileErr) {
+        console.error("Could not write profile to users collection in Firestore: ", profileErr);
+        handleFirestoreError(profileErr, OperationType.WRITE, `users/${rawUid}`);
+      }
 
+      // 2. Try to write user roles
+      try {
         const permissions: string[] = [];
         await setDoc(doc(db, "user_roles", rawUid), {
           user_id: rawUid,
           role: "user",
           permissions: permissions
         });
-        console.log("Registered user profile to Firestore database:", rawUid);
-      } catch (fErr) {
-        console.warn("Could not save onboarded profile to Firestore: ", fErr);
+        console.log("Registered user roles to Firestore database:", rawUid);
+      } catch (rolesErr) {
+        console.error("Could not write roles to user_roles collection in Firestore: ", rolesErr);
+        handleFirestoreError(rolesErr, OperationType.WRITE, `user_roles/${rawUid}`);
       }
     }
 

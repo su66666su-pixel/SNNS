@@ -49,15 +49,15 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.keys().hasAll(['id', 'username', 'name'])
         && data.id is string && data.id.size() <= 128
-        && data.username is string && data.username.size() >= 3 && data.username.size() <= 30
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 60
-        && (!data.keys().contains('bio') || (data.bio is string && data.bio.size() <= 500))
-        && (!data.keys().contains('location') || (data.location is string && data.location.size() <= 150))
-        && (!data.keys().contains('avatar') || (data.avatar is string && data.avatar.size() <= 1000))
-        && (!data.keys().contains('cover') || (data.cover is string && data.cover.size() <= 1000))
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 128
+        && (!data.keys().contains('bio') || (data.bio is string && data.bio.size() <= 1000))
+        && (!data.keys().contains('location') || (data.location is string && data.location.size() <= 256))
+        && (!data.keys().contains('avatar') || (data.avatar is string && data.avatar.size() <= 200000))
+        && (!data.keys().contains('cover') || (data.cover is string && data.cover.size() <= 200000))
         && (!data.keys().contains('balance') || data.balance is number)
         && (!data.keys().contains('role') || (data.role is string && data.role.size() <= 30))
-        && (!data.keys().contains('status') || (data.status is string && data.status.size() <= 20));
+        && (!data.keys().contains('status') || (data.status is string && data.status.size() <= 40));
     }
 
     // 3. Videos Collection

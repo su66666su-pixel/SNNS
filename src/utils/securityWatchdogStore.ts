@@ -44,7 +44,60 @@ export interface SecurityWatchdogStats {
 }
 
 // Default device sessions for su66666su@gmail.com
-const DEFAULT_DEVICES: DeviceSession[] = [];
+const DEFAULT_DEVICES: DeviceSession[] = [
+  {
+    id: "dev_01",
+    deviceName: "Apple iPhone 15 Pro Max",
+    browser: "Safari Mobile",
+    ip: "185.120.44.18",
+    country: "المملكة العربية السعودية",
+    countryCode: "SA",
+    flag: "🇸🇦",
+    timestamp: "2026-05-27 15:30",
+    isTrusted: true,
+    isActive: true,
+    isCurrent: true
+  },
+  {
+    id: "dev_02",
+    deviceName: "MacBook Pro 16\"",
+    browser: "Safari macOS",
+    ip: "84.235.92.12",
+    country: "المملكة العربية السعودية",
+    countryCode: "SA",
+    flag: "🇸🇦",
+    timestamp: "2026-05-26 22:15",
+    isTrusted: true,
+    isActive: true,
+    isCurrent: false
+  },
+  {
+    id: "dev_03",
+    deviceName: "Windows 11 Desktop PC",
+    browser: "Google Chrome",
+    ip: "37.126.33.204",
+    country: "المملكة العربية السعودية",
+    countryCode: "SA",
+    flag: "🇸🇦",
+    timestamp: "2026-05-25 09:40",
+    isTrusted: true,
+    isActive: true,
+    isCurrent: false
+  },
+  {
+    id: "dev_04",
+    deviceName: "Linux Desktop (Ubuntu)",
+    browser: "Firefox",
+    ip: "185.220.101.9",
+    country: "الولايات المتحدة",
+    countryCode: "US",
+    flag: "🇺🇸",
+    timestamp: "2026-05-24 14:02",
+    isTrusted: false,
+    isActive: true,
+    isCurrent: false
+  }
+];
 
 // Seed initial threat logs representing realistic attempts that "الحارس الذكي" thwarted
 const DEFAULT_THREAT_LOGS: SecurityThreatLog[] = [];
@@ -60,6 +113,36 @@ export function getDeviceSessions(): DeviceSession[] {
 
 export function saveDeviceSessions(sessions: DeviceSession[]) {
   localStorage.setItem("snns_sentry_devices", JSON.stringify(sessions));
+}
+
+export function terminateDeviceSession(sessionId: string): DeviceSession[] {
+  const sessions = getDeviceSessions();
+  const targetSession = sessions.find(s => s.id === sessionId);
+  const filtered = sessions.filter(s => s.id !== sessionId);
+  saveDeviceSessions(filtered);
+  
+  if (targetSession) {
+    addThreatLog({
+      userId: "su66666su",
+      ip: targetSession.ip,
+      countryName: targetSession.country,
+      countryCode: targetSession.countryCode,
+      flag: targetSession.flag,
+      device: targetSession.deviceName,
+      browser: targetSession.browser,
+      eventType: "new_device",
+      riskScore: "medium",
+      actionTaken: "locked_account",
+      notes: `تم إنهاء الجلسة وتسجيل الخروج عن بعد يدويًا للجهاز: ${targetSession.deviceName} (${targetSession.browser}) من لوحة تحكم الإشراف.`,
+      verified: true
+    });
+  }
+
+  // Dispatch global custom event so panels update seamlessly in real-time
+  const evt = new CustomEvent("snns_sentry_threat_added");
+  window.dispatchEvent(evt);
+  
+  return filtered;
 }
 
 export function getThreatLogs(): SecurityThreatLog[] {
