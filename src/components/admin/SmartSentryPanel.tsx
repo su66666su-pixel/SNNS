@@ -4,7 +4,8 @@ import {
   ShieldCheck, ShieldAlert, Cpu, Terminal, Users, AlertOctagon, 
   RefreshCw, Ban, UserX, Unlock, Eye, EyeOff, Globe, Sparkles, 
   Fingerprint, HelpCircle, Flame, Shield, Play, Trash2, KeyRound,
-  RotateCcw, Search, ExternalLink, HelpCircle as InfoIcon
+  RotateCcw, Search, ExternalLink, HelpCircle as InfoIcon,
+  FileText, Printer, X, Calendar
 } from "lucide-react";
 import { 
   getThreatLogs, saveThreatLogs, SecurityThreatLog,
@@ -21,6 +22,8 @@ export default function SmartSentryPanel() {
   const [viewUnmasked, setViewUnmasked] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRiskFilter, setSelectedRiskFilter] = useState<string>("all");
+  const [showPdfReport, setShowPdfReport] = useState(false);
+  const [pdfTheme, setPdfTheme] = useState<"light" | "dark">("light");
   
   // Simulation ongoing effects
   const [simType, setSimType] = useState<string | null>(null);
@@ -305,7 +308,16 @@ export default function SmartSentryPanel() {
             </p>
           </div>
 
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
+            {/* Export Security Report (PDF) */}
+            <button
+              onClick={() => setShowPdfReport(true)}
+              className="py-2 px-3.5 bg-gradient-to-r from-emerald-600 to-saudi-green hover:from-emerald-500 hover:to-saudi-green/90 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-saudi-green/15"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>تصدير تقرير أمني (PDF)</span>
+            </button>
+
             {/* View unmasked toggler */}
             <button
               onClick={() => setViewUnmasked(!viewUnmasked)}
@@ -646,6 +658,279 @@ export default function SmartSentryPanel() {
           </div>
         </div>
       </div>
+
+      {/* Dynamic PDF Preview and High-Fidelity A4 Printing Modal */}
+      <AnimatePresence>
+        {showPdfReport && (
+          <div id="printable-pdf-report-root" className="fixed inset-0 z-[10000] overflow-y-auto bg-[#050505]/95 flex justify-center items-start p-4 sm:p-6 md:p-10 font-tajawal" dir="rtl">
+            
+            {/* Quick print configuration style overrides */}
+            <style dangerouslySetInnerHTML={{ __html: `
+              @media print {
+                /* Hide everything in the document body */
+                body > * {
+                  display: none !important;
+                }
+                /* Show ONLY this printable container */
+                #printable-pdf-report-root {
+                  display: block !important;
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 100% !important;
+                  background: ${pdfTheme === "light" ? "#ffffff" : "#050505"} !important;
+                  color: ${pdfTheme === "light" ? "#111827" : "#ffffff"} !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .no-print-element {
+                  display: none !important;
+                }
+                .print-card {
+                  box-shadow: none !important;
+                  border: 1px solid ${pdfTheme === "light" ? "#e5e7eb" : "#262626"} !important;
+                  background: ${pdfTheme === "light" ? "#ffffff" : "#050505"} !important;
+                }
+              }
+            ` }} />
+
+            <div className="w-full max-w-5xl bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden flex flex-col md:flex-row shadow-[0_0_50px_rgba(0,163,79,0.15)] no-print-element">
+              
+              {/* Sidebar controls: no-print */}
+              <div className="w-full md:w-80 bg-neutral-950 p-6 border-l border-white/5 flex flex-col justify-between gap-6 no-print-element shrink-0">
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-black text-sm text-saudi-glow flex items-center gap-1.5">
+                      <FileText className="w-4 h-4" />
+                      <span>معالج التقارير الأمنية EXPORT</span>
+                    </h3>
+                    <button 
+                      onClick={() => setShowPdfReport(false)}
+                      className="p-1.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    مرحباً بكم في جناح التوزيع الأمني لـ SNNS Sentry-AI. يقوم المعالج بجمع كل التقارير السيبرانية الحالية وعقد تحليل وطني مشفر قابل للاستخراج والمشاركة والطباعة بصيغة PDF.
+                  </p>
+
+                  {/* Print Theme Selector */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-gray-500 font-bold block">مظهر وموضوع التقرير المطبوع:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setPdfTheme("light")}
+                        className={`p-2 rounded-xl border text-[10.5px] font-bold text-center transition-all cursor-pointer ${
+                          pdfTheme === "light" 
+                            ? "bg-white text-black border-white font-black" 
+                            : "bg-neutral-900 text-gray-400 border-white/5 hover:text-white"
+                        }`}
+                      >
+                        ☀️ حبري رسمي (Light)
+                      </button>
+                      <button
+                        onClick={() => setPdfTheme("dark")}
+                        className={`p-2 rounded-xl border text-[10.5px] font-bold text-center transition-all cursor-pointer ${
+                          pdfTheme === "dark" 
+                            ? "bg-saudi-green/10 text-saudi-glow border-saudi-green/40 font-black" 
+                            : "bg-neutral-900 text-gray-400 border-white/5 hover:text-white"
+                        }`}
+                      >
+                        🌙 نيون سيبراني (Dark)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter Info summary */}
+                  <div className="bg-[#050505] p-3.5 rounded-xl border border-white/5 text-[10.5px] space-y-1.5 text-gray-400">
+                    <span className="text-gray-550 font-black block">إحصاءات التقرير المولد:</span>
+                    <div>• السجلات المدرجة: <strong className="text-white font-mono">{filteredLogs.length} سجل</strong></div>
+                    <div>• فلترة المخاطر: <strong className="text-saudi-glow">{selectedRiskFilter === "all" ? "الكل" : getRiskLabel(selectedRiskFilter as ThreatRiskLevel)}</strong></div>
+                    {searchQuery && <div>• حصر تصفية البحث: <strong className="text-white">"{searchQuery}"</strong></div>}
+                  </div>
+                </div>
+
+                {/* Print Trigger Button */}
+                <div className="space-y-2 pt-4 border-t border-white/5">
+                  <button
+                    onClick={() => {
+                      setTimeout(() => {
+                        window.print();
+                      }, 100);
+                    }}
+                    className="w-full py-3 px-4 bg-saudi-green hover:bg-saudi-green/90 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-saudi-green/20"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>حفظ كـ PDF / طباعة التقرير</span>
+                  </button>
+                  <p className="text-[9px] text-gray-650 text-center uppercase tracking-widest font-mono">SNNS.PRO SECURITIES INC.</p>
+                </div>
+              </div>
+
+              {/* PDF Sheet Preview frame */}
+              <div className="flex-1 p-4 sm:p-8 max-h-[85vh] overflow-y-auto bg-neutral-950 inline-block align-middle pad-scrolling">
+                
+                {/* Visual A4 paper wrapper */}
+                <div 
+                  id="printable-pdf-report"
+                  className={`w-full max-w-4xl mx-auto rounded-2xl p-6 sm:p-10 border transition-all text-right ${
+                    pdfTheme === "light" 
+                      ? "bg-white text-gray-950 border-gray-200 shadow-2xl" 
+                      : "bg-[#050505] text-white border-white/10 shadow-[0_0_50px_rgba(0,163,79,0.05)]"
+                  }`}
+                >
+                  
+                  {/* DOCUMENT LETTERHEAD */}
+                  <div className="flex justify-between items-start pb-6 border-b border-dashed mb-6 flex-wrap gap-4" style={{ borderColor: pdfTheme === "light" ? "#d1d5db" : "#262626" }}>
+                    
+                    {/* SNNS cyber crest & Title */}
+                    <div className="space-y-1 text-right">
+                      <div className="flex items-center gap-2">
+                        {/* Custom vector elegant logo icon */}
+                        <div className={`p-2 rounded-xl border ${pdfTheme === "light" ? "bg-emerald-550/10 border-emerald-500/20 text-emerald-600" : "bg-saudi-green/10 border-saudi-green/35 text-saudi-glow"}`}>
+                          <Shield className="w-5 h-5" />
+                        </div>
+                        <div className="text-right">
+                          <h1 className={`text-base font-black tracking-tight ${pdfTheme === "light" ? "text-gray-900" : "text-white"}`}>منصة سـنـس للتواصل الاجتماعي</h1>
+                          <p className="text-[9px] text-gray-500 uppercase tracking-wider font-mono">SNNS SOCIAL PLATFORM • SENTRY HUB</p>
+                        </div>
+                      </div>
+                      <h2 className={`text-xs font-black mt-3 ${pdfTheme === "light" ? "text-emerald-700" : "text-saudi-glow"}`}>تقرير استخبارات وأمن المعلومات السيبراني المعتمد 🇸🇦</h2>
+                    </div>
+
+                    {/* Official stamp & metadata */}
+                    <div className="text-[10px] space-y-1 text-right">
+                      <div>تاريخ التحليل: <strong className="font-mono">{new Date().toLocaleDateString("ar-SA")}</strong></div>
+                      <div>توقيت التصدير: <strong className="font-mono">{new Date().toLocaleTimeString("ar-SA")} (KSA)</strong></div>
+                      <div>سند الترخيص: <span className="font-mono text-gray-400">#SNNS-SENTRY-AI-99X</span></div>
+                      <div className="pt-2">
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black border uppercase ${
+                          pdfTheme === "light" ? "bg-emerald-50 border-emerald-300 text-emerald-600" : "bg-emerald-950/30 border-saudi-green/20 text-saudi-glow"
+                        }`}>SECURE EXPORTED</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* EXECUTIVE SUMMARY PANELS */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-[11px] text-right">
+                    <div className={`p-3 rounded-xl border text-right ${pdfTheme === "light" ? "bg-gray-50 border-gray-200 text-gray-900" : "bg-[#0c0c0c] border-[#1c1c1c]"}`}>
+                      <span className="text-gray-550 block text-[9px] font-bold">المشرف المسؤول</span>
+                      <strong className={`block mt-0.5 ${pdfTheme === "light" ? "text-gray-950" : "text-white"}`}>سليمان العتيبي</strong>
+                      <span className="text-gray-450 block text-[8px]">رئيس مكتب الامتثال (SA)</span>
+                    </div>
+
+                    <div className={`p-3 rounded-xl border ${pdfTheme === "light" ? "bg-gray-50 border-gray-200 text-gray-900" : "bg-[#0c0c0c] border-[#1c1c1c]"}`}>
+                      <span className="text-gray-550 block text-[9px] font-bold">سلامة النظام الإجمالية</span>
+                      <strong className="block mt-0.5 text-emerald-600 font-mono text-sm font-black">%98.0</strong>
+                      <span className="text-gray-450 block text-[8px]">مستوى الحصانة القصوى</span>
+                    </div>
+
+                    <div className={`p-3 rounded-xl border ${pdfTheme === "light" ? "bg-gray-50 border-gray-200 text-gray-900" : "bg-[#0c0c0c] border-[#1c1c1c]"}`}>
+                      <span className="text-gray-550 block text-[9px] font-bold">عدد التهديدات بالتقرير</span>
+                      <strong className="block mt-0.5 text-amber-500 font-mono text-sm font-black">{filteredLogs.length}</strong>
+                      <span className="text-gray-450 block text-[8px]">سجلات رصد مفصلة</span>
+                    </div>
+
+                    <div className={`p-3 rounded-xl border ${pdfTheme === "light" ? "bg-gray-50 border-gray-200 text-gray-900" : "bg-[#0c0c0c] border-[#1c1c1c]"}`}>
+                      <span className="text-gray-550 block text-[9px] font-bold">عناوين الـ IP المحجوبة</span>
+                      <strong className="block mt-0.5 text-red-500 font-mono text-sm font-black">{blockedIps.length}</strong>
+                      <span className="text-gray-450 block text-[8px]">جدار حماية الجلسات</span>
+                    </div>
+                  </div>
+
+                  {/* LOGS TABLE (HIGH FIDELITY REPORT TABLE) */}
+                  <div className="mb-8 select-text">
+                    <h3 className={`font-black text-[11.5px] mb-3 pb-1.5 border-b text-right ${pdfTheme === "light" ? "text-gray-800 border-gray-200" : "text-white border-[#1c1c1c]"}`}>
+                      تفاصيل الرصد الأمني واستخبارات العقد السيبرانية:
+                    </h3>
+
+                    <div className="overflow-x-auto rounded-xl border" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>
+                      <table className="w-full text-right text-[10.5px] border-collapse">
+                        <thead>
+                          <tr className={`${pdfTheme === "light" ? "bg-gray-50 text-gray-850" : "bg-neutral-950 text-gray-400"} font-black`}>
+                            <th className="p-2.5 border-b text-right" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>تاريخ/توقيت العمل</th>
+                            <th className="p-2.5 border-b text-right" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>المستهدف</th>
+                            <th className="p-2.5 border-b text-right" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>عنصر التهديد</th>
+                            <th className="p-2.5 border-b text-right" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>العنوان والجهاز</th>
+                            <th className="p-2.5 border-b text-right" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>إجراء الـ AI الأمني</th>
+                            <th className="p-2.5 border-b text-right" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>مستوى الخطر</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="p-6 text-center text-gray-500">لا توجد سجلات تهديد مدرجة بالتقرير حالياً</td>
+                            </tr>
+                          ) : (
+                            filteredLogs.map((log) => (
+                              <tr 
+                                key={log.id} 
+                                className="border-b hover:bg-white/1" 
+                                style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#1a1a1a" }}
+                              >
+                                <td className="p-2.5 font-mono select-all text-right shrink-0" style={{ whiteSpace: "nowrap" }}>{log.timestamp}</td>
+                                <td className="p-2.5 font-bold text-right text-saudi-glow">@{log.userId}</td>
+                                <td className="p-2.5 font-medium text-right">{getEventNameAr(log.eventType)}</td>
+                                <td className="p-2.5 text-right select-all">
+                                  <div className="font-mono text-gray-450">{viewUnmasked ? log.ip : maskIpAddress(log.ip)}</div>
+                                  <div className="text-[8.5px] text-gray-500 font-mono truncate max-w-[120px]" title={log.device}>{log.device}</div>
+                                </td>
+                                <td className="p-2.5 font-black text-amber-500 text-right">{getActionNameAr(log.actionTaken)}</td>
+                                <td className="p-2.5 text-right">
+                                  <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-black ${
+                                    log.riskScore === "extreme" ? "bg-red-500/15 text-red-500 border border-red-500/20" :
+                                    log.riskScore === "high" ? "bg-orange-500/15 text-orange-500 border border-orange-500/20" :
+                                    "bg-yellow-500/15 text-yellow-500 border border-yellow-500/20"
+                                  }`}>
+                                    {getRiskLabel(log.riskScore)}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* DOCUMENT WATERMARK FOOTER / LEGAL STAMP */}
+                  <div className="mt-12 flex justify-between items-end pt-6 border-t flex-wrap gap-6" style={{ borderColor: pdfTheme === "light" ? "#e5e7eb" : "#262626" }}>
+                    
+                    {/* Legal security notification */}
+                    <div className="max-w-md text-right">
+                      <h4 className={`text-[10px] font-black ${pdfTheme === "light" ? "text-gray-900" : "text-white"}`}>بند الاستخدام والسرية الإدارية:</h4>
+                      <p className="text-[9px] text-gray-500 leading-relaxed mt-1">
+                        يعتبر هذا التقرير الأمني مستخرجاً رسمياً سرياً للغاية وملكاً خاصاً بإدارة تفعيل منصة SNNS.PRO. يُحظر مشاركة أو تسريب محتويات هذا المستند لأطراف خارجية غير مخولة، ويقع فاعلها تحت طائلة المسؤولية المدنية والسيبرانية المشددة بالمملكة العربية السعودية 🇸🇦.
+                      </p>
+                    </div>
+
+                    {/* Official authorized signature block */}
+                    <div className="text-center min-w-[140px]">
+                      <span className="text-[9px] text-gray-500 block">اعتماد المدير التنفيذي</span>
+                      
+                      {/* Signature graphic SVG mockup */}
+                      <div className="h-10 my-1.5 flex items-center justify-center text-emerald-600">
+                        <svg className="w-28 h-8 opacity-75" viewBox="0 0 100 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M5 15C15 5 25 30 35 15C45 5 50 25 65 15C80 5 90 20 95 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                          <path d="M10 20C30 20 50 10 90 25" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3"/>
+                        </svg>
+                      </div>
+
+                      <strong className={`text-[10px] block ${pdfTheme === "light" ? "text-gray-950" : "text-white"}`}>سليمان العتيبي</strong>
+                      <span className="text-[8px] text-gray-550 block font-mono">Sentry Chief Seal</span>
+                    </div>
+
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
